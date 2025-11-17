@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Talk to AI Assistant | Business Voice Agent</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* Voice-specific styles */
+    .role-selector {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .role-card {
+      background: white;
+      border: 2px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .role-card:hover {
+      border-color: #4F46E5;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+    }
+
+    .role-card.selected {
+      border-color: #4F46E5;
+      background: #F5F3FF;
+    }
+
+    .role-icon {
+      font-size: 40px;
+      margin-bottom: 10px;
+    }
+
+    .role-name {
+      font-weight: 600;
+      font-size: 16px;
+      color: #111827;
+      margin-bottom: 5px;
+    }
+
+    .role-description {
+      font-size: 13px;
+      color: #6B7280;
+    }
+
+    .voice-controls {
+      text-align: center;
+      padding: 30px 0;
+    }
+
+    .mic-button {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+      color: white;
+      font-size: 50px;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(79, 70, 229, 0.3);
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+    }
+
+    .mic-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 32px rgba(79, 70, 229, 0.4);
+    }
+
+    .mic-button:active {
+      transform: scale(0.95);
+    }
+
+    .mic-button.recording {
+      background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3); }
+      50% { box-shadow: 0 8px 36px rgba(239, 68, 68, 0.6); }
+    }
+
+    .status-indicator {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: 500;
+      color: #6B7280;
+    }
+
+    .status-indicator.active {
+      color: #10B981;
+    }
+
+    .transcript-display {
+      max-height: 400px;
+      overflow-y: auto;
+      background: #F9FAFB;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .transcript-message {
+      margin-bottom: 15px;
+      padding: 12px;
+      border-radius: 8px;
+      animation: slideIn 0.3s;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .transcript-worker {
+      background: white;
+      border-left: 4px solid #4F46E5;
+    }
+
+    .transcript-agent {
+      background: #EEF2FF;
+      border-left: 4px solid #10B981;
+    }
+
+    .transcript-speaker {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 5px;
+      color: #374151;
+    }
+
+    .transcript-text {
+      font-size: 15px;
+      color: #1F2937;
+      line-height: 1.5;
+    }
+
+    .worker-id-input {
+      margin: 20px 0;
+    }
+
+    .worker-id-input input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #E5E7EB;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    .start-btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    .start-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
+    }
+
+    .start-btn:disabled {
+      background: #9CA3AF;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .end-session-btn {
+      padding: 12px 24px;
+      background: #EF4444;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Role Selection Screen -->
+    <div id="roleSelection" class="card">
+      <h1>🎤 Talk to AI Assistant</h1>
+      <p>Select your role to start the conversation</p>
+
+      <div class="worker-id-input">
+        <input
+          type="text"
+          id="workerIdInput"
+          placeholder="Enter your name or ID (e.g., John Smith)"
+          value="Worker_001"
+        />
+      </div>
+
+      <div class="role-selector" id="roleSelector">
+        <!-- Roles will be loaded here -->
+      </div>
+
+      <button id="startBtn" class="start-btn" disabled>Start Conversation</button>
+
+      <div style="margin-top: 20px; text-align: center;">
+        <a href="/" style="color: #6B7280;">← Back to Home</a>
+      </div>
+    </div>
+
+    <!-- Voice Interface Screen -->
+    <div id="voiceInterface" class="card hidden">
+      <h1>🎙️ Voice Conversation</h1>
+      <p id="roleDisplay"></p>
+
+      <div class="voice-controls">
+        <button id="micButton" class="mic-button">
+          🎤
+        </button>
+        <div class="status-indicator" id="statusIndicator">
+          Tap microphone to start talking
+        </div>
+      </div>
+
+      <div class="transcript-display" id="transcriptDisplay">
+        <p style="text-align: center; color: #9CA3AF;">
+          Conversation will appear here...
+        </p>
+      </div>
+
+      <div style="text-align: center;">
+        <button id="endSessionBtn" class="end-session-btn">End Conversation</button>
+      </div>
+    </div>
+
+    <!-- Session Complete Screen -->
+    <div id="sessionComplete" class="card hidden">
+      <h1>✅ Session Complete!</h1>
+      <p>Your conversation has been saved.</p>
+
+      <div id="sessionSummary" style="margin: 20px 0; padding: 20px; background: #F9FAFB; border-radius: 8px;">
+        <!-- Summary will be shown here -->
+      </div>
+
+      <button onclick="location.reload()" class="start-btn">Start New Conversation</button>
+
+      <div style="margin-top: 20px; text-align: center;">
+        <a href="/admin" style="color: #6B7280;">View All Transcripts →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Load scripts -->
+  <script src="/js/app.js"></script>
+  <script src="/js/realtime-voice.js"></script>
+  <script>
+    // Global state
+    let selectedRole = null;
+    let voiceClient = null;
+    let currentTranscript = [];
+
+    // Load roles on page load
+    window.addEventListener('DOMContentLoaded', loadRoles);
+
+    async function loadRoles() {
+      try {
+        const response = await fetch('/api/roles');
+        const data = await response.json();
+
+        const roleSelector = document.getElementById('roleSelector');
+        roleSelector.innerHTML = data.roles.map(role => `
+          <div class="role-card" onclick="selectRole('${role.id}')" data-role="${role.id}">
+            <div class="role-icon">${role.icon}</div>
+            <div class="role-name">${role.name}</div>
+            <div class="role-description">${role.description}</div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        showToast('Failed to load roles', 'danger');
+        console.error(error);
+      }
+    }
+
+    function selectRole(roleId) {
+      selectedRole = roleId;
+
+      // Update UI
+      document.querySelectorAll('.role-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+
+      document.querySelector(`[data-role="${roleId}"]`).classList.add('selected');
+
+      // Enable start button
+      document.getElementById('startBtn').disabled = false;
+    }
+
+    // Start conversation
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      const workerId = document.getElementById('workerIdInput').value.trim();
+
+      if (!workerId) {
+        showToast('Please enter your name or ID', 'warning');
+        return;
+      }
+
+      if (!selectedRole) {
+        showToast('Please select your role', 'warning');
+        return;
+      }
+
+      // Initialize voice client
+      try {
+        voiceClient = new RealtimeVoiceClient();
+
+        // Set up event handlers
+        voiceClient.onSessionStarted = (data) => {
+          console.log('Session started:', data);
+          showToast('Connected! Start talking...', 'success');
+        };
+
+        voiceClient.onTranscriptUpdate = (speaker, text, isComplete) => {
+          addToTranscript(speaker, text, isComplete);
+        };
+
+        voiceClient.onError = (error) => {
+          showToast(error, 'danger');
+        };
+
+        voiceClient.onSessionEnded = (transcript) => {
+          showSessionComplete(transcript);
+        };
+
+        // Connect
+        await voiceClient.connect();
+
+        // Start session
+        await voiceClient.startSession(workerId, selectedRole);
+
+        // Show voice interface
+        document.getElementById('roleSelection').classList.add('hidden');
+        document.getElementById('voiceInterface').classList.remove('hidden');
+
+        // Update role display
+        const roleCard = document.querySelector(`[data-role="${selectedRole}"]`);
+        const roleName = roleCard.querySelector('.role-name').textContent;
+        document.getElementById('roleDisplay').textContent = `Role: ${roleName} | Worker: ${workerId}`;
+
+      } catch (error) {
+        console.error('Failed to start session:', error);
+        showToast('Failed to connect. Please check your internet connection.', 'danger');
+      }
+    });
+
+    // Microphone button
+    const micButton = document.getElementById('micButton');
+    const statusIndicator = document.getElementById('statusIndicator');
+    let isRecording = false;
+
+    micButton.addEventListener('click', async () => {
+      if (!isRecording) {
+        // Start recording
+        await voiceClient.startRecording();
+        isRecording = true;
+        micButton.classList.add('recording');
+        statusIndicator.textContent = '🔴 Recording... (tap to stop)';
+        statusIndicator.classList.add('active');
+      } else {
+        // Stop recording
+        voiceClient.stopRecording();
+        isRecording = false;
+        micButton.classList.remove('recording');
+        statusIndicator.textContent = 'Processing...';
+        setTimeout(() => {
+          statusIndicator.textContent = 'Tap to talk again';
+          statusIndicator.classList.remove('active');
+        }, 1000);
+      }
+    });
+
+    // Add to transcript display
+    let currentAgentMessage = null;
+    let currentWorkerMessage = null;
+
+    function addToTranscript(speaker, text, isComplete) {
+      const transcriptDisplay = document.getElementById('transcriptDisplay');
+
+      if (speaker === 'worker') {
+        if (!currentWorkerMessage) {
+          currentWorkerMessage = document.createElement('div');
+          currentWorkerMessage.className = 'transcript-message transcript-worker';
+          currentWorkerMessage.innerHTML = `
+            <div class="transcript-speaker">👤 You</div>
+            <div class="transcript-text"></div>
+          `;
+          transcriptDisplay.appendChild(currentWorkerMessage);
+        }
+
+        currentWorkerMessage.querySelector('.transcript-text').textContent = text;
+
+        if (isComplete) {
+          currentWorkerMessage = null;
+        }
+      } else {
+        if (!currentAgentMessage) {
+          currentAgentMessage = document.createElement('div');
+          currentAgentMessage.className = 'transcript-message transcript-agent';
+          currentAgentMessage.innerHTML = `
+            <div class="transcript-speaker">🤖 AI Assistant</div>
+            <div class="transcript-text"></div>
+          `;
+          transcriptDisplay.appendChild(currentAgentMessage);
+        }
+
+        currentAgentMessage.querySelector('.transcript-text').textContent = text;
+
+        if (isComplete) {
+          currentAgentMessage = null;
+        }
+      }
+
+      // Auto-scroll to bottom
+      transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+
+      // Clear placeholder
+      const placeholder = transcriptDisplay.querySelector('p');
+      if (placeholder) {
+        placeholder.remove();
+      }
+    }
+
+    // End session
+    document.getElementById('endSessionBtn').addEventListener('click', () => {
+      if (confirm('End this conversation? The transcript will be saved.')) {
+        if (voiceClient) {
+          voiceClient.endSession();
+        }
+      }
+    });
+
+    // Show session complete
+    function showSessionComplete(transcript) {
+      document.getElementById('voiceInterface').classList.add('hidden');
+      document.getElementById('sessionComplete').classList.remove('hidden');
+
+      const summary = document.getElementById('sessionSummary');
+      summary.innerHTML = `
+        <h3>Session Summary</h3>
+        <p><strong>Duration:</strong> ${Math.floor(transcript.duration / 60)} minutes ${transcript.duration % 60} seconds</p>
+        <p><strong>Messages:</strong> ${transcript.summary.totalMessages} total</p>
+        <p><strong>Your Messages:</strong> ${transcript.summary.workerMessages}</p>
+        <p><strong>AI Responses:</strong> ${transcript.summary.agentMessages}</p>
+        <p style="margin-top: 10px; color: #6B7280;">Session ID: ${transcript.sessionId}</p>
+      `;
+    }
+
+    // Handle browser back button
+    window.addEventListener('beforeunload', (e) => {
+      if (voiceClient && isRecording) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+  </script>
+</body>
+</html>

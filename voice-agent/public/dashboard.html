@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#667eea">
+  <link rel="manifest" href="/manifest.json">
+  <title>Dashboard - Business Voice Agent</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="mobile-container">
+    <header class="header">
+      <a href="/" class="logo">
+        <span class="logo-icon">📊</span>
+        <span class="logo-text">Analytics</span>
+      </a>
+      <a href="/" class="btn-back">← Back</a>
+    </header>
+
+    <main class="main-content">
+      <!-- Real-time Metrics -->
+      <div class="metrics-row">
+        <div class="metric-box">
+          <div class="metric-icon">👥</div>
+          <div class="metric-value" id="activeWorkers">0</div>
+          <div class="metric-label">Active Workers</div>
+        </div>
+
+        <div class="metric-box">
+          <div class="metric-icon">✅</div>
+          <div class="metric-value" id="tasksCompleted">0</div>
+          <div class="metric-label">Tasks Done</div>
+        </div>
+
+        <div class="metric-box">
+          <div class="metric-icon">⚠️</div>
+          <div class="metric-value" id="issuesReported">0</div>
+          <div class="metric-label">Issues</div>
+        </div>
+
+        <div class="metric-box">
+          <div class="metric-icon">📦</div>
+          <div class="metric-value" id="suppliesNeeded">0</div>
+          <div class="metric-label">Supplies</div>
+        </div>
+      </div>
+
+      <!-- Activity Feed -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🔴 Live Activity Feed</h2>
+          <span class="live-indicator">● LIVE</span>
+        </div>
+
+        <div id="activityFeed" class="activity-feed">
+          <div class="empty-state">
+            <div class="empty-icon">💬</div>
+            <p>No activity yet</p>
+            <p class="help-text">Activities will appear here in real-time</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Worker Metrics -->
+      <div class="card">
+        <h2>👷 Worker Performance</h2>
+        <div id="workerMetrics"></div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="action-buttons">
+        <button class="btn btn-primary btn-block" onclick="window.location.href='/voice'">
+          🎙️ Start Voice Session
+        </button>
+        <button class="btn btn-secondary btn-block" onclick="clearData()">
+          🗑️ Clear Today's Data
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <style>
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .metric-box {
+      background: white;
+      padding: 1.25rem;
+      border-radius: 1rem;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .metric-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .metric-label {
+      font-size: 0.875rem;
+      color: var(--text-light);
+      font-weight: 600;
+    }
+
+    .card {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 1rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1.5rem;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .card h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--dark);
+    }
+
+    .live-indicator {
+      color: var(--danger);
+      font-size: 0.875rem;
+      font-weight: 600;
+      animation: pulse 2s infinite;
+    }
+
+    .activity-feed {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .activity-item {
+      padding: 1rem;
+      background: var(--light);
+      border-radius: 0.5rem;
+      margin-bottom: 0.75rem;
+      border-left: 4px solid var(--primary);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .activity-time {
+      font-size: 0.75rem;
+      color: var(--text-light);
+      margin-bottom: 0.25rem;
+    }
+
+    .activity-text {
+      font-size: 0.875rem;
+      color: var(--dark);
+      font-weight: 500;
+    }
+
+    .activity-type {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+
+    .type-task { background: #d1fae5; color: #065f46; }
+    .type-issue { background: #fee2e2; color: #991b1b; }
+    .type-supply { background: #dbeafe; color: #1e40af; }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .empty-state p {
+      color: var(--text-light);
+      margin-bottom: 0.5rem;
+    }
+
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .worker-metric {
+      background: var(--light);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .worker-metric h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 0.5rem;
+    }
+
+    .worker-stats {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.875rem;
+      color: var(--text-light);
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+  </style>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
