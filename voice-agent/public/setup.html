@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#667eea">
+  <link rel="manifest" href="/manifest.json">
+  <title>Setup - Business Voice Agent</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="mobile-container">
+    <header class="header">
+      <a href="/" class="logo">
+        <span class="logo-icon">🎤</span>
+        <span class="logo-text">Business Voice</span>
+      </a>
+      <a href="/" class="btn-back">← Back</a>
+    </header>
+
+    <main class="main-content">
+      <div class="hero">
+        <h1>⚙️ Agent Setup</h1>
+        <p>Configure your voice assistant</p>
+      </div>
+
+      <!-- OpenAI API Key -->
+      <div class="card">
+        <h2>🔑 OpenAI API Key</h2>
+        <p class="help-text">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Dashboard</a></p>
+
+        <div class="form-group">
+          <label class="form-label">API Key</label>
+          <input type="password" id="apiKey" class="form-input" placeholder="sk-proj-...">
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="testApiKey()">
+          Test API Key
+        </button>
+
+        <div id="apiKeyStatus"></div>
+      </div>
+
+      <!-- Agent Configuration -->
+      <div class="card">
+        <h2>🤖 Agent Personality</h2>
+
+        <div class="form-group">
+          <label class="form-label">Agent Name</label>
+          <input type="text" id="agentName" class="form-input" placeholder="WorkMate">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Voice Style</label>
+          <select id="agentVoice" class="form-select">
+            <option value="alloy">Alloy - Neutral, professional</option>
+            <option value="echo">Echo - Warm, friendly</option>
+            <option value="fable">Fable - Expressive, energetic</option>
+            <option value="onyx">Onyx - Deep, authoritative</option>
+            <option value="nova">Nova - Bright, enthusiastic</option>
+            <option value="shimmer">Shimmer - Soft, gentle</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">System Prompt</label>
+          <textarea id="systemPrompt" class="form-textarea" placeholder="You are a helpful voice assistant..."></textarea>
+          <p class="help-text">Instructions that define your agent's behavior</p>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="saveAgentConfig()">
+          Save Agent Config
+        </button>
+      </div>
+
+      <!-- Analytics Keywords -->
+      <div class="card">
+        <h2>📊 Tracking Keywords</h2>
+        <p class="help-text">Words that trigger automatic tracking</p>
+
+        <div class="form-group">
+          <label class="form-label">Task Completion Keywords</label>
+          <input type="text" id="taskKeywords" class="form-input" placeholder="finished, completed, done">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Issue Report Keywords</label>
+          <input type="text" id="issueKeywords" class="form-input" placeholder="broken, issue, problem">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Supply Request Keywords</label>
+          <input type="text" id="supplyKeywords" class="form-input" placeholder="need, running low, out of">
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="saveAnalyticsConfig()">
+          Save Keywords
+        </button>
+      </div>
+
+      <!-- Workers -->
+      <div class="card">
+        <h2>👷 Manage Workers</h2>
+
+        <div id="workersList"></div>
+
+        <h3 style="margin-top: 2rem; margin-bottom: 1rem;">Add New Worker</h3>
+
+        <div class="form-group">
+          <label class="form-label">Worker ID</label>
+          <input type="text" id="workerId" class="form-input" placeholder="W001">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <input type="text" id="workerName" class="form-input" placeholder="John Doe">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Role</label>
+          <input type="text" id="workerRole" class="form-input" placeholder="Warehouse">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Shift</label>
+          <select id="workerShift" class="form-select">
+            <option value="morning">Morning</option>
+            <option value="afternoon">Afternoon</option>
+            <option value="evening">Evening</option>
+            <option value="night">Night</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="addWorker()">
+          Add Worker
+        </button>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="card">
+        <h2>🚀 Quick Actions</h2>
+
+        <button class="btn btn-secondary btn-block" onclick="loadCurrentConfig()">
+          Load Current Config
+        </button>
+
+        <button class="btn btn-secondary btn-block" style="margin-top: 1rem;" onclick="window.location.href='/dashboard'">
+          View Dashboard
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <style>
+    .card {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 1rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1.5rem;
+    }
+
+    .card h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--dark);
+    }
+
+    .card h3 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--dark);
+    }
+
+    .help-text {
+      font-size: 0.875rem;
+      color: var(--text-light);
+      margin-bottom: 1rem;
+    }
+
+    .help-text a {
+      color: var(--primary);
+      text-decoration: underline;
+    }
+
+    .btn-back {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .worker-item {
+      background: var(--light);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .worker-info {
+      flex: 1;
+    }
+
+    .worker-info h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 0.25rem;
+    }
+
+    .worker-info p {
+      font-size: 0.875rem;
+      color: var(--text-light);
+    }
+
+    .btn-delete {
+      background: var(--danger);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+  </style>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/setup.js"></script>
+</body>
+</html>

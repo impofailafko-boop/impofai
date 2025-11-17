@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#667eea">
+  <link rel="manifest" href="/manifest.json">
+  <title>Voice - Business Voice Agent</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="mobile-container">
+    <header class="header">
+      <a href="/" class="logo">
+        <span class="logo-icon">🎤</span>
+        <span class="logo-text">Business Voice</span>
+      </a>
+      <a href="/" class="btn-back">← Back</a>
+    </header>
+
+    <main class="main-content">
+      <div class="hero">
+        <h1>🎙️ Voice Interface</h1>
+        <p>Start a conversation with your AI assistant</p>
+      </div>
+
+      <!-- Worker Selection -->
+      <div class="card" id="workerSelectionCard">
+        <h2>Select Worker</h2>
+        <div id="workerList" class="worker-selection"></div>
+        <div id="noWorkersMessage" class="help-text" style="display: none; text-align: center; padding: 2rem;">
+          No workers configured yet. <a href="/setup">Add workers in setup</a>
+        </div>
+      </div>
+
+      <!-- Voice Interface (Hidden until worker selected) -->
+      <div id="voiceInterface" style="display: none;">
+        <!-- Current Session Info -->
+        <div class="card">
+          <div class="session-info">
+            <div class="worker-avatar">👷</div>
+            <div class="worker-details">
+              <h3 id="currentWorkerName">Worker Name</h3>
+              <p id="currentWorkerRole">Role</p>
+            </div>
+            <div class="session-time">
+              <span id="sessionDuration">00:00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Voice Controls -->
+        <div class="card voice-controls-card">
+          <div class="voice-status" id="voiceStatus">
+            <div class="status-icon" id="statusIcon">🎤</div>
+            <div class="status-text" id="statusText">Ready to start</div>
+          </div>
+
+          <button class="btn-voice" id="startVoiceBtn" onclick="startVoiceSession()">
+            <span class="btn-voice-icon">🎙️</span>
+            <span class="btn-voice-text">Start Conversation</span>
+          </button>
+
+          <button class="btn-voice btn-voice-stop" id="stopVoiceBtn" onclick="stopVoiceSession()" style="display: none;">
+            <span class="btn-voice-icon">⏹️</span>
+            <span class="btn-voice-text">Stop Conversation</span>
+          </button>
+
+          <div class="help-text" style="text-align: center; margin-top: 1rem;">
+            Tap to start, then speak naturally. The assistant will respond and track everything automatically.
+          </div>
+        </div>
+
+        <!-- Conversation Display -->
+        <div class="card">
+          <h2>📝 Conversation</h2>
+          <div id="conversationDisplay" class="conversation-display">
+            <div class="empty-state">
+              <div class="empty-icon">💬</div>
+              <p>Start talking to begin the conversation</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Session Stats -->
+        <div class="card">
+          <h2>📊 This Session</h2>
+          <div class="session-stats">
+            <div class="stat-item">
+              <span class="stat-label">Duration</span>
+              <span class="stat-value" id="statDuration">0 min</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Tasks</span>
+              <span class="stat-value" id="statTasks">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Issues</span>
+              <span class="stat-value" id="statIssues">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Supplies</span>
+              <span class="stat-value" id="statSupplies">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- End Session -->
+        <button class="btn btn-secondary btn-block" onclick="endSession()">
+          End Session
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <style>
+    /* Worker Selection */
+    .worker-selection {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .worker-card {
+      background: var(--light);
+      padding: 1.25rem;
+      border-radius: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+
+    .worker-card:hover {
+      border-color: var(--primary);
+      background: white;
+    }
+
+    .worker-card h4 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 0.5rem;
+    }
+
+    .worker-card p {
+      font-size: 0.875rem;
+      color: var(--text-light);
+    }
+
+    /* Session Info */
+    .session-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .worker-avatar {
+      width: 60px;
+      height: 60px;
+      background: var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+    }
+
+    .worker-details {
+      flex: 1;
+    }
+
+    .worker-details h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 0.25rem;
+    }
+
+    .worker-details p {
+      font-size: 0.875rem;
+      color: var(--text-light);
+    }
+
+    .session-time {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    /* Voice Controls */
+    .voice-controls-card {
+      text-align: center;
+    }
+
+    .voice-status {
+      margin-bottom: 2rem;
+    }
+
+    .status-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      animation: pulse 2s infinite;
+    }
+
+    .status-text {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .btn-voice {
+      width: 100%;
+      padding: 1.5rem;
+      border: none;
+      border-radius: 1rem;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      font-size: 1.25rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .btn-voice:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-voice:active {
+      transform: translateY(0);
+    }
+
+    .btn-voice-icon {
+      font-size: 1.75rem;
+    }
+
+    .btn-voice-stop {
+      background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+      margin-top: 1rem;
+    }
+
+    /* Conversation Display */
+    .conversation-display {
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 1rem;
+      background: var(--light);
+      border-radius: 0.5rem;
+    }
+
+    .message {
+      margin-bottom: 1rem;
+      padding: 1rem;
+      border-radius: 0.75rem;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .message-worker {
+      background: white;
+      border-left: 4px solid var(--primary);
+    }
+
+    .message-agent {
+      background: #e0e7ff;
+      border-left: 4px solid var(--secondary);
+    }
+
+    .message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .message-sender {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--dark);
+    }
+
+    .message-time {
+      font-size: 0.75rem;
+      color: var(--text-light);
+    }
+
+    .message-text {
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .message-tags {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .message-tag {
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .tag-task { background: #d1fae5; color: #065f46; }
+    .tag-issue { background: #fee2e2; color: #991b1b; }
+    .tag-supply { background: #dbeafe; color: #1e40af; }
+
+    /* Session Stats */
+    .session-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 1rem;
+      background: var(--light);
+      border-radius: 0.5rem;
+    }
+
+    .stat-label {
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-light);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      display: block;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    /* Recording Animation */
+    .recording .status-icon {
+      animation: pulse 1s infinite, bounce 2s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    /* Listening Animation */
+    .listening .status-icon {
+      animation: pulse 0.5s infinite;
+    }
+  </style>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/voice.js"></script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#667eea">
+  <meta name="description" content="AI voice assistant for workers with real-time analytics">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <title>Business Voice Agent</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="mobile-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🎤</span>
+        <span class="logo-text">Business Voice</span>
+      </div>
+      <div class="status-badge" id="statusBadge">
+        <span class="status-dot"></span>
+        <span>Ready</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="hero">
+        <h1>AI Voice Assistant for Your Team</h1>
+        <p>Natural conversations that track tasks, issues, and productivity in real-time</p>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="action-grid">
+        <a href="/setup" class="action-card primary">
+          <div class="action-icon">⚙️</div>
+          <h3>Setup Agent</h3>
+          <p>Configure your voice assistant</p>
+        </a>
+
+        <a href="/dashboard" class="action-card">
+          <div class="action-icon">📊</div>
+          <h3>Analytics</h3>
+          <p>View real-time metrics</p>
+        </a>
+
+        <a href="/voice-realtime" class="action-card highlight">
+          <div class="action-icon">🎙️</div>
+          <h3>Start Talking</h3>
+          <p>Real-time voice conversation</p>
+        </a>
+
+        <a href="/admin" class="action-card">
+          <div class="action-icon">👥</div>
+          <h3>Admin Panel</h3>
+          <p>View all transcripts</p>
+        </a>
+      </div>
+
+      <!-- Features -->
+      <div class="features">
+        <h2>What It Does</h2>
+
+        <div class="feature-card">
+          <div class="feature-icon">💬</div>
+          <div class="feature-content">
+            <h3>Natural Conversations</h3>
+            <p>Workers talk naturally, hands-free. AI understands context and intent.</p>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📈</div>
+          <div class="feature-content">
+            <h3>Automatic Tracking</h3>
+            <p>Tasks, issues, supplies - all logged automatically from conversations.</p>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <div class="feature-content">
+            <h3>Smart Analytics</h3>
+            <p>Real-time insights into productivity, sentiment, and operations.</p>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🚀</div>
+          <div class="feature-content">
+            <h3>Action Triggers</h3>
+            <p>Auto-creates tickets, sends alerts, updates systems based on conversations.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Info -->
+      <div class="info-panel">
+        <h3>System Status</h3>
+        <div class="info-grid" id="systemInfo">
+          <div class="info-item">
+            <span class="info-label">Uptime</span>
+            <span class="info-value" id="uptime">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Sessions Today</span>
+            <span class="info-value" id="sessions">0</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Active Workers</span>
+            <span class="info-value" id="workers">0</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Tasks Completed</span>
+            <span class="info-value" id="tasks">0</span>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Business Voice Agent v1.0.0</p>
+      <p>Part of Agentic Tribe</p>
+    </footer>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
