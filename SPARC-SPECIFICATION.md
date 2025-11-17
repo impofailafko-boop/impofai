@@ -17,6 +17,12 @@
 
 **ImpofAI** is an AI-powered business intelligence platform that functions as an "invisible consultant" for companies. The system conducts natural conversations with employees in Slovak, extracting deep insights about company operations, identifying problems, discovering patterns, and generating actionable recommendations—all without manual data entry or traditional surveys.
 
+**Development Approach:**
+- ✅ **Built from scratch** following SPARC methodology
+- ✅ Existing `/voice-agent` folder is **demo/reference only**
+- ✅ All components designed and implemented according to this specification
+- ✅ Clean, purpose-built architecture (not retrofitting demo code)
+
 ### 1.2 Core Concept
 
 ```
@@ -669,7 +675,7 @@ Admin can ask AI questions:
 - **Framework:** Express.js (REST API + WebSocket server)
 - **Database:** AgentDB v1.6.1 (SQLite backend via sql.js WASM)
 - **Voice:** OpenAI Realtime API (gpt-4o-realtime-preview)
-- **Real-time Analysis:** MidStream (Rust + TypeScript)
+- **Real-time Analysis:** MidStream (Rust + TypeScript - git clone install)
 - **WebSocket:** ws library
 
 **Frontend:**
@@ -688,6 +694,11 @@ Admin can ask AI questions:
 - **Reverse Proxy:** Nginx
 - **SSL:** Let's Encrypt
 - **Monitoring:** Application logs + error tracking
+
+**Installation Methods:**
+- **AgentDB:** `npm install agentdb@1.6.1` (npm package)
+- **MidStream:** `git clone https://github.com/ruvnet/midstream.git` (build from source)
+- **Note:** Existing `/voice-agent` folder is DEMO ONLY - entire system built from scratch per SPARC spec
 
 ### 6.2 Data Models (Conceptual)
 
@@ -750,27 +761,30 @@ Admin can ask AI questions:
     - patterns_discovered (JSON), recommendations (JSON)
     - causal_insights (JSON), performance_stats (JSON)
 
-### 6.3 File Structure
+### 6.3 File Structure (To Be Built)
+
+**Note:** Existing `/voice-agent` folder is reference/demo only. The following structure represents the NEW system to be built according to SPARC specifications.
 
 ```
 /impofai
 │
-├── /voice-agent                          # Voice conversation system
-│   ├── /src
-│   │   ├── server.js                     # Main Express + WebSocket server
-│   │   ├── realtime-voice-agent.js       # OpenAI Realtime API integration
+├── /src                                  # Main application source
+│   ├── /voice                            # Voice conversation system
+│   │   ├── server.js                     # Express + WebSocket server
+│   │   ├── realtime-agent.js             # OpenAI Realtime API integration
 │   │   ├── conversation-analyzer.js      # Topic detection, sentiment analysis
 │   │   └── db-adapter.js                 # AgentDB wrapper
+│   │
 │   ├── /config
-│   │   ├── agent-config.js               # AI personality, prompts
-│   │   └── worker-roles.js               # Role-specific questioning strategies
-│   ├── /public
-│   │   ├── voice-interface.html          # Worker UI
+│   │   ├── agent-config.js               # AI personality, prompts (Slovak)
+│   │   └── questioning-strategies.js     # Adaptive questioning patterns
+│   │
+│   ├── /public                           # Frontend assets
+│   │   ├── worker-interface.html         # Worker UI (one-button design)
 │   │   ├── /js
-│   │   │   └── realtime-voice-client.js  # Client-side WebSocket + audio
+│   │   │   └── voice-client.js           # Client-side WebSocket + audio
 │   │   └── /css
 │   │       └── styles.css
-│   └── package.json
 │
 ├── /midstream-integration                # Real-time analysis
 │   ├── /src
