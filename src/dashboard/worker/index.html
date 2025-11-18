@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ImpofAI - Hlásenie problémov</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: white;
+      overflow: hidden;
+    }
+
+    .container {
+      text-align: center;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      opacity: 0.9;
+      margin-bottom: 3rem;
+    }
+
+    #talkButton {
+      width: 250px;
+      height: 250px;
+      border-radius: 50%;
+      border: none;
+      background: white;
+      color: #667eea;
+      font-size: 1.5rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+      position: relative;
+      margin: 0 auto 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #talkButton:active {
+      transform: scale(0.95);
+    }
+
+    #talkButton.listening {
+      background: #ef4444;
+      color: white;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    #talkButton.connecting {
+      background: #f59e0b;
+      color: white;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 10px 40px rgba(239, 68, 68, 0.3);
+      }
+      50% {
+        transform: scale(1.05);
+        box-shadow: 0 15px 50px rgba(239, 68, 68, 0.5);
+      }
+    }
+
+    .status {
+      font-size: 1.2rem;
+      min-height: 30px;
+      margin-bottom: 1rem;
+      opacity: 0.9;
+    }
+
+    .transcript {
+      background: rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 20px;
+      margin-top: 2rem;
+      max-height: 300px;
+      overflow-y: auto;
+      text-align: left;
+      backdrop-filter: blur(10px);
+    }
+
+    .transcript-turn {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .transcript-turn.worker {
+      background: rgba(102, 126, 234, 0.3);
+      margin-right: 20px;
+    }
+
+    .transcript-turn.agent {
+      background: rgba(255, 255, 255, 0.2);
+      margin-left: 20px;
+    }
+
+    .transcript-speaker {
+      font-weight: 700;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+
+    .transcript-text {
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+
+    .worker-info {
+      background: rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 2rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .worker-info input {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      background: rgba(255,255,255,0.9);
+      color: #333;
+    }
+
+    .worker-info button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 8px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      background: white;
+      color: #667eea;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .worker-info button:hover {
+      background: rgba(255,255,255,0.9);
+      transform: translateY(-2px);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .error {
+      background: rgba(239, 68, 68, 0.2);
+      border: 2px solid #ef4444;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 1rem;
+    }
+
+    .mic-icon {
+      font-size: 4rem;
+    }
+
+    .instructions {
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 2rem;
+      backdrop-filter: blur(10px);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .instructions h3 {
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+    }
+
+    .instructions ul {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .instructions li {
+      padding: 5px 0;
+      padding-left: 25px;
+      position: relative;
+    }
+
+    .instructions li:before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎙️ ImpofAI</h1>
+    <p class="subtitle">Hlásenie problémov hlasom</p>
+
+    <!-- Worker Info Form (shown initially) -->
+    <div id="workerInfoForm" class="worker-info">
+      <h3 style="margin-bottom: 15px;">Prihláste sa</h3>
+      <input type="text" id="workerName" placeholder="Vaše meno (napr. Ján Novák)" required>
+      <input type="text" id="workerId" placeholder="ID zamestnanca (napr. WORKER-001)" required>
+      <select id="workerRole" style="width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 8px; font-size: 1rem; background: rgba(255,255,255,0.9); color: #333;">
+        <option value="">Vyberte pozíciu</option>
+        <option value="warehouse">Skladník</option>
+        <option value="driver">Vodič</option>
+        <option value="forklift">Vysokozdvižník</option>
+        <option value="packing">Balenie</option>
+        <option value="receiving">Príjem</option>
+        <option value="shipping">Expedícia</option>
+        <option value="other">Iné</option>
+      </select>
+      <button onclick="startSession()">Začať</button>
+    </div>
+
+    <!-- Voice Interface (hidden initially) -->
+    <div id="voiceInterface" class="hidden">
+      <button id="talkButton" onclick="toggleListening()">
+        <span class="mic-icon">🎤</span>
+      </button>
+
+      <div class="status" id="status">Stlačte tlačidlo a hovore</div>
+
+      <div id="errorMessage" class="error hidden"></div>
+
+      <div class="transcript" id="transcript">
+        <div style="text-align: center; opacity: 0.6;">
+          Konverzácia sa zobrazí tu...
+        </div>
+      </div>
+
+      <div class="instructions">
+        <h3>Ako to funguje:</h3>
+        <ul>
+          <li>Stlačte tlačidlo mikrofónu</li>
+          <li>Opíšte problém po slovensky</li>
+          <li>AI asistent sa vás opýta na detaily</li>
+          <li>Keď ste hotový, stlačte "Ukončiť konverzáciu"</li>
+        </ul>
+      </div>
+
+      <button onclick="endConversation()" style="margin-top: 20px; padding: 12px 30px; background: rgba(239, 68, 68, 0.9); color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 700;">
+        Ukončiť konverzáciu
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin + '/api/v1';
+    let conversationId = null;
+    let sessionId = null;
+    let isListening = false;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let ws = null;
+
+    // Worker info
+    let workerInfo = {
+      workerId: null,
+      workerName: null,
+      role: null
+    };
+
+    /**
+     * Start session with worker info
+     */
+    async function startSession() {
+      const name = document.getElementById('workerName').value.trim();
+      const id = document.getElementById('workerId').value.trim();
+      const role = document.getElementById('workerRole').value;
+
+      if (!name || !id || !role) {
+        alert('Prosím vyplňte všetky polia');
+        return;
+      }
+
+      workerInfo = {
+        workerId: id,
+        workerName: name,
+        role: role
+      };
+
+      // Hide form, show voice interface
+      document.getElementById('workerInfoForm').classList.add('hidden');
+      document.getElementById('voiceInterface').classList.remove('hidden');
+
+      // Start conversation
+      await createConversation();
+    }
+
+    /**
+     * Create a new conversation
+     */
+    async function createConversation() {
+      try {
+        updateStatus('Pripájam sa...', 'connecting');
+
+        const response = await fetch(`${API_BASE}/conversations/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(workerInfo)
+        });
+
+        const data = await response.json();
+        conversationId = data.conversationId;
+        sessionId = data.sessionId;
+
+        updateStatus('Pripravený. Stlačte tlačidlo a hovorte.', 'ready');
+        console.log('✅ Conversation started:', conversationId);
+
+        // Connect to OpenAI Realtime API WebSocket
+        await connectToRealtimeAPI();
+      } catch (error) {
+        showError('Nepodarilo sa pripojiť: ' + error.message);
+      }
+    }
+
+    /**
+     * Connect to OpenAI Realtime API via our backend
+     */
+    async function connectToRealtimeAPI() {
+      try {
+        // We'll implement this after creating the WebSocket endpoint
+        updateStatus('WebSocket pripojenie pripravené', 'ready');
+      } catch (error) {
+        console.error('WebSocket connection failed:', error);
+        showError('Pripojenie zlyhalo. Použite text mode.');
+      }
+    }
+
+    /**
+     * Toggle listening state
+     */
+    async function toggleListening() {
+      if (!conversationId) {
+        showError('Žiadna aktívna konverzácia');
+        return;
+      }
+
+      if (isListening) {
+        stopListening();
+      } else {
+        startListening();
+      }
+    }
+
+    /**
+     * Start listening to microphone
+     */
+    async function startListening() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm'
+        });
+
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          await processAudio(audioBlob);
+
+          // Stop all tracks
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+
+        isListening = true;
+        updateButtonState('listening');
+        updateStatus('🔴 Nahrávam... Hovorte teraz!', 'listening');
+      } catch (error) {
+        showError('Mikrofón nie je dostupný: ' + error.message);
+      }
+    }
+
+    /**
+     * Stop listening
+     */
+    function stopListening() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+
+      isListening = false;
+      updateButtonState('ready');
+      updateStatus('Spracovávam...', 'processing');
+    }
+
+    /**
+     * Process audio (send to OpenAI for transcription)
+     */
+    async function processAudio(audioBlob) {
+      try {
+        // For MVP, we'll use a simple text input fallback
+        // In production, this would send audio to OpenAI Realtime API
+
+        // Temporary: prompt user for text input
+        const text = prompt('Demo režim: Napíšte text namiesto hlasu');
+
+        if (text && text.trim()) {
+          await addTranscriptTurn('worker', text.trim());
+
+          // Simulate AI response
+          await simulateAIResponse(text);
+        }
+
+        updateStatus('Pripravený. Stlačte tlačidlo a hovorte.', 'ready');
+      } catch (error) {
+        showError('Spracovanie zlyhalo: ' + error.message);
+        updateStatus('Pripravený. Stlačte tlačidlo a hovorte.', 'ready');
+      }
+    }
+
+    /**
+     * Simulate AI response (temporary - will be replaced by OpenAI Realtime API)
+     */
+    async function simulateAIResponse(workerText) {
+      const responses = [
+        'Rozumiem. Kedy ste si prvýkrát všimli tento problém?',
+        'Môžete mi povedať, kde presne sa to stalo?',
+        'Aké ďalšie detaily si pamätáte?',
+        'Ďakujem za informáciu. Je ešte niečo, čo by som mal vedieť?'
+      ];
+
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await addTranscriptTurn('agent', randomResponse);
+    }
+
+    /**
+     * Add transcript turn to conversation
+     */
+    async function addTranscriptTurn(speaker, text) {
+      try {
+        await fetch(`${API_BASE}/conversations/${conversationId}/transcript`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ speaker, text })
+        });
+
+        // Add to UI
+        const transcriptDiv = document.getElementById('transcript');
+
+        // Remove placeholder
+        if (transcriptDiv.querySelector('div[style*="text-align: center"]')) {
+          transcriptDiv.innerHTML = '';
+        }
+
+        const turnDiv = document.createElement('div');
+        turnDiv.className = `transcript-turn ${speaker}`;
+        turnDiv.innerHTML = `
+          <div class="transcript-speaker">${speaker === 'worker' ? '👤 Vy' : '🤖 AI Asistent'}</div>
+          <div class="transcript-text">${text}</div>
+        `;
+
+        transcriptDiv.appendChild(turnDiv);
+        transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
+      } catch (error) {
+        console.error('Failed to add transcript turn:', error);
+      }
+    }
+
+    /**
+     * End conversation
+     */
+    async function endConversation() {
+      if (!conversationId) return;
+
+      try {
+        updateStatus('Ukončujem konverzáciu...', 'processing');
+
+        await fetch(`${API_BASE}/conversations/${conversationId}/end`, {
+          method: 'POST'
+        });
+
+        updateStatus('✅ Konverzácia ukončená. Ďakujeme!', 'ready');
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } catch (error) {
+        showError('Nepodarilo sa ukončiť konverzáciu: ' + error.message);
+      }
+    }
+
+    /**
+     * Update button state
+     */
+    function updateButtonState(state) {
+      const button = document.getElementById('talkButton');
+      button.className = state;
+
+      if (state === 'listening') {
+        button.innerHTML = '<span class="mic-icon">🔴</span>';
+      } else if (state === 'connecting') {
+        button.innerHTML = '<span class="mic-icon">⏳</span>';
+      } else {
+        button.innerHTML = '<span class="mic-icon">🎤</span>';
+      }
+    }
+
+    /**
+     * Update status message
+     */
+    function updateStatus(message, state) {
+      document.getElementById('status').textContent = message;
+      updateButtonState(state || 'ready');
+    }
+
+    /**
+     * Show error message
+     */
+    function showError(message) {
+      const errorDiv = document.getElementById('errorMessage');
+      errorDiv.textContent = '❌ ' + message;
+      errorDiv.classList.remove('hidden');
+
+      setTimeout(() => {
+        errorDiv.classList.add('hidden');
+      }, 5000);
+    }
+  </script>
+</body>
+</html>

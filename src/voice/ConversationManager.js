@@ -6,14 +6,22 @@
  * - Stores transcripts to database
  * - Tracks conversation metadata
  * - Coordinates with Conversation Planner
+ * - Real-time analysis with MidStream
  */
 
 import { randomUUID } from 'crypto';
+import { MidStreamAnalyzer } from '../analytics/MidStreamAnalyzer.js';
 
 export class ConversationManager {
   constructor(db) {
     this.db = db;
     this.activeSessions = new Map(); // sessionId -> session data
+    this.analyzer = new MidStreamAnalyzer();
+
+    // Initialize MidStream analyzer
+    this.analyzer.initialize().catch(err => {
+      console.warn('⚠️  MidStream initialization failed, using fallback analysis:', err.message);
+    });
   }
 
   /**
@@ -77,6 +85,48 @@ export class ConversationManager {
       text,
       timestamp: timestamp || new Date().toISOString()
     });
+
+    // Real-time analysis with MidStream (only analyze worker turns for efficiency)
+    if (speaker === 'worker') {
+      try {
+        const analysis = await this.analyzer.analyzeTurn({
+          text,
+          speaker,
+          conversationHistory: session.transcript.slice(0, -1) // Exclude current turn
+        });
+
+        // Update session metadata with real-time analysis
+        if (analysis.topics.length > 0) {
+          session.metadata.topics = [...new Set([...session.metadata.topics, ...analysis.topics])];
+        }
+
+        if (analysis.issues.length > 0) {
+          session.metadata.issues = [...new Set([...session.metadata.issues, ...analysis.issues])];
+        }
+
+        if (analysis.sentiment.overall !== 'neutral') {
+          session.metadata.sentiment = analysis.sentiment.overall;
+        }
+
+        if (analysis.urgency.level !== 'low') {
+          session.metadata.urgency = analysis.urgency.level;
+        }
+
+        // Extract location from entities
+        if (analysis.entities.locations.length > 0) {
+          session.metadata.location = analysis.entities.locations[0];
+        }
+
+        // Extract equipment
+        if (analysis.entities.equipment.length > 0) {
+          session.metadata.equipment = analysis.entities.equipment;
+        }
+
+        console.log(`🔍 Real-time analysis: sentiment=${analysis.sentiment.overall}, urgency=${analysis.urgency.level}, topics=${analysis.topics.join(',')}`);
+      } catch (error) {
+        console.warn('⚠️  Real-time analysis failed:', error.message);
+      }
+    }
 
     // Update database
     const turnColumn = speaker === 'worker' ? 'worker_turns' : 'agent_turns';
@@ -146,6 +196,28 @@ export class ConversationManager {
     if (!session) {
       console.warn(`Session not found for conversation: ${conversationId}`);
       return;
+    }
+
+    // Final conversation analysis with MidStream
+    try {
+      const finalAnalysis = await this.analyzer.analyzeConversation(session.transcript);
+
+      // Update metadata with final analysis
+      await this.updateMetadata({
+        conversationId,
+        topics: finalAnalysis.topics,
+        issues: finalAnalysis.issues,
+        sentiment: finalAnalysis.sentiment,
+        urgency: finalAnalysis.urgency,
+        location: finalAnalysis.locations[0] || session.metadata.location
+      });
+
+      // Store conversation quality score
+      session.metadata.conversationQuality = finalAnalysis.conversationQuality;
+
+      console.log(`📊 Final analysis: quality=${finalAnalysis.conversationQuality}/100, topics=${finalAnalysis.topics.join(',')}`);
+    } catch (error) {
+      console.warn('⚠️  Final conversation analysis failed:', error.message);
     }
 
     const duration = Math.floor((new Date() - session.startedAt) / 1000);

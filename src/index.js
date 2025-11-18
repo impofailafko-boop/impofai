@@ -372,10 +372,16 @@ app.get('/api/v1/stats/conversations', (req, res) => {
   }
 });
 
-// Serve dashboard static files
+// Serve worker interface
+app.use('/worker', express.static(path.join(__dirname, 'dashboard/worker')));
+app.get('/worker', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard/worker/index.html'));
+});
+
+// Serve admin dashboard static files
 app.use(express.static(path.join(__dirname, 'dashboard/public')));
 
-// Serve dashboard at root
+// Serve admin dashboard at root
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard/public/index.html'));
 });
