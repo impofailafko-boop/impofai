@@ -34,7 +34,7 @@
     "isomorphic-dompurify": "^2.9.0",
     "midstreamer": "^0.2.4",
     "openai": "^4.73.0",
-    "ws": "^8.14.2",
+    "ws": "^8.18.3",
     "zod": "^3.22.4"
   },
   "devDependencies": {
