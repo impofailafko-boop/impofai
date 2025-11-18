@@ -1,5 +1,45 @@
 {
+  "name": "impofai",
+  "version": "1.0.0",
+  "description": "Business Intelligence Through Conversational AI - Slovak voice conversations powered by AgentDB",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "echo \"Tests coming soon\" && exit 0",
+    "migrate": "node src/database/migrate.js"
+  },
+  "keywords": [
+    "ai",
+    "voice",
+    "slovak",
+    "business-intelligence",
+    "agentdb",
+    "openai"
+  ],
+  "author": "Agentic Tribe",
+  "license": "MIT",
   "dependencies": {
-    "agentdb": "^1.6.1"
+    "agentdb": "^1.6.1",
+    "openai": "^4.73.0",
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "dotenv": "^16.3.1",
+    "zod": "^3.22.4",
+    "dompurify": "^3.0.8",
+    "isomorphic-dompurify": "^2.9.0",
+    "csurf": "^1.11.0",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
