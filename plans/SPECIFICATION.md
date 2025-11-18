@@ -227,6 +227,28 @@ System learns company structure WITHOUT manual input:
 - Search library for relevant questions in real-time
 - Auto-improve questions based on success rates
 
+**FR-4.2.1: Conversation Strategy Planner (Goal-Oriented)**
+Uses goal-oriented planning to conduct smarter interviews:
+- **Goal Definition:** Determine what information is needed based on initial statement
+  ```
+  Worker says: "Skener v uličke 5 nefunguje"
+  Goal: Extract complete issue information
+  Missing: When? How often? Impact? Attempted fixes?
+  ```
+- **Strategy Planning:** Plan optimal question sequence to fill information gaps
+  ```
+  Plan:
+  1. Ask timing → "Kedy ste si prvýkrát všimli problém?"
+  2. Ask frequency → "Stáva sa to často?"
+  3. Ask impact → "Ako vám to bráni v práci?"
+  4. Ask attempted fixes → "Skúsili ste to reštartovať?"
+  ```
+- **Dynamic Adaptation:** Adjust plan if worker gives unexpected/vague answers
+- **Completeness Check:** Validate all required info collected before ending conversation
+- **Integration:** Works WITH SkillLibrary (provides questions) and ReflexionMemory (learns what works)
+- **Natural Feel:** Planner suggests questions, but AI can deviate to keep conversation natural
+- **Configurable:** Can be tuned from "strict" (follow plan) to "loose" (suggestions only)
+
 **FR-4.3: Nightly Learning Cycle**
 - Every night (or configurable schedule):
   - Analyze all conversations from period

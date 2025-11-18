@@ -9,12 +9,12 @@ Complete inventory of all system components for the Business Intelligence Platfo
 | Category | Components | Status |
 |----------|-----------|--------|
 | **Voice System** | 3 components | 📋 Specified |
-| **Learning System** | 5 components | 📋 Specified |
+| **Learning System** | 6 components | 📋 Specified |
 | **Analytics Engine** | 4 components | 📋 Specified |
 | **Admin Dashboard** | 6 components | 📋 Specified |
 | **Infrastructure** | 4 components | 📋 Specified |
 | **Utilities** | 3 components | 📋 Specified |
-| **TOTAL** | **25 components** | **Phase 1/5** |
+| **TOTAL** | **26 components** | **Phase 1/5** |
 
 ---
 
@@ -107,7 +107,23 @@ Complete inventory of all system components for the Business Intelligence Platfo
 - **Status:** ✅ Tested & Validated
 - **Integration:** `/src/learning/causal-analyzer.js` (to be built)
 
-### 2.5 AgentDB Core
+### 2.5 Conversation Strategy Planner
+- **Purpose:** Goal-oriented interview planning for complete information extraction
+- **Technology:** Custom implementation using goal-oriented planning
+- **Features:**
+  - Define information goals based on worker statements
+  - Plan optimal question sequences
+  - Track missing information (when, frequency, impact, etc.)
+  - Dynamic replanning when answers are vague
+  - Completeness validation
+  - Integration with SkillLibrary (question templates)
+  - Integration with ReflexionMemory (strategy learning)
+  - Configurable strictness (strict follow-plan vs loose suggestions)
+- **Status:** 📋 Specified (new)
+- **Integration:** `/src/learning/conversation-planner.js` (to be built)
+- **Priority:** Medium (enhances interview quality)
+
+### 2.6 AgentDB Core
 - **Purpose:** Database and memory orchestration
 - **Technology:** AgentDB v1.6.1 (npm package)
 - **Features:**
