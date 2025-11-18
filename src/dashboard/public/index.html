@@ -241,18 +241,27 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:3000/api/v1';
+        // Dynamic API base URL - works on localhost and production
+        const API_BASE = `${window.location.origin}/api/v1`;
+
+        // Pagination state
+        let paginationState = {
+            patterns: { limit: 20, offset: 0, hasMore: true },
+            recommendations: { limit: 20, offset: 0, hasMore: true }
+        };
 
         async function loadDashboard() {
             try {
                 // Load stats
                 await loadStats();
 
-                // Load patterns
-                await loadPatterns();
+                // Load patterns (reset pagination)
+                paginationState.patterns = { limit: 20, offset: 0, hasMore: true };
+                await loadPatterns(true);
 
-                // Load recommendations
-                await loadRecommendations();
+                // Load recommendations (reset pagination)
+                paginationState.recommendations = { limit: 20, offset: 0, hasMore: true };
+                await loadRecommendations(true);
 
             } catch (error) {
                 console.error('Error loading dashboard:', error);
@@ -290,24 +299,37 @@
             }
         }
 
-        async function loadPatterns() {
-            const response = await fetch(`${API_BASE}/patterns`);
+        async function loadPatterns(reset = false) {
+            const { limit, offset } = paginationState.patterns;
+
+            const response = await fetch(`${API_BASE}/patterns?limit=${limit}&offset=${reset ? 0 : offset}`);
             const data = await response.json();
 
             const container = document.getElementById('patternsContent');
 
             if (!data.patterns || data.patterns.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <p>Zatiaľ neboli detekované žiadne vzory.</p>
-                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Vzory sa vytvoria po spracovaní viacerých konverzácií.</p>
-                    </div>
-                `;
+                if (reset || offset === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <p>Zatiaľ neboli detekované žiadne vzory.</p>
+                            <p style="font-size: 0.9rem; margin-top: 0.5rem;">Vzory sa vytvoria po spracovaní viacerých konverzácií.</p>
+                        </div>
+                    `;
+                }
+                paginationState.patterns.hasMore = false;
                 return;
             }
 
+            // Update pagination state
+            paginationState.patterns.hasMore = data.hasMore || false;
+            if (!reset) {
+                paginationState.patterns.offset += data.patterns.length;
+            } else {
+                paginationState.patterns.offset = data.patterns.length;
+            }
+
             const html = `
-                <ul class="pattern-list">
+                <ul class="pattern-list" id="patternsList">
                     ${data.patterns.map(pattern => `
                         <li class="pattern-item">
                             <h4>${pattern.issue_description}</h4>
@@ -321,29 +343,97 @@
                         </li>
                     `).join('')}
                 </ul>
+                ${paginationState.patterns.hasMore ? `
+                    <button class="refresh-btn" onclick="loadMorePatterns()" style="margin-top: 1rem;">
+                        📄 Načítať viac vzorov
+                    </button>
+                ` : `
+                    <p style="text-align: center; color: #7f8c8d; margin-top: 1rem;">
+                        Zobrazené všetky vzory (${data.total || paginationState.patterns.offset})
+                    </p>
+                `}
             `;
 
-            container.innerHTML = html;
+            if (reset) {
+                container.innerHTML = html;
+            } else {
+                // Append to existing list
+                const existingList = document.getElementById('patternsList');
+                if (existingList) {
+                    data.patterns.forEach(pattern => {
+                        const li = document.createElement('li');
+                        li.className = 'pattern-item';
+                        li.innerHTML = `
+                            <h4>${pattern.issue_description}</h4>
+                            <p><strong>Lokácia:</strong> ${pattern.location || 'Neuvedené'}</p>
+                            <div class="pattern-meta">
+                                <span><strong>${pattern.occurrence_count}×</strong> výskytov</span>
+                                <span><strong>${JSON.parse(pattern.affected_workers || '[]').length}</strong> pracovníkov</span>
+                                <span class="badge badge-${pattern.urgency_level}">${pattern.urgency_level}</span>
+                                <span class="roi-highlight">Náklady: €${pattern.estimated_daily_cost.toFixed(2)}/deň</span>
+                            </div>
+                        `;
+                        existingList.appendChild(li);
+                    });
+
+                    // Update button
+                    const oldButton = container.querySelector('button');
+                    if (oldButton) oldButton.remove();
+                    const oldFooter = container.querySelector('p[style*="text-align: center"]');
+                    if (oldFooter) oldFooter.remove();
+
+                    if (paginationState.patterns.hasMore) {
+                        const btn = document.createElement('button');
+                        btn.className = 'refresh-btn';
+                        btn.style.marginTop = '1rem';
+                        btn.onclick = loadMorePatterns;
+                        btn.textContent = '📄 Načítať viac vzorov';
+                        container.appendChild(btn);
+                    } else {
+                        const p = document.createElement('p');
+                        p.style.cssText = 'text-align: center; color: #7f8c8d; margin-top: 1rem;';
+                        p.textContent = `Zobrazené všetky vzory (${data.total || paginationState.patterns.offset})`;
+                        container.appendChild(p);
+                    }
+                }
+            }
         }
 
-        async function loadRecommendations() {
-            const response = await fetch(`${API_BASE}/recommendations`);
+        async function loadMorePatterns() {
+            await loadPatterns(false);
+        }
+
+        async function loadRecommendations(reset = false) {
+            const { limit, offset } = paginationState.recommendations;
+
+            const response = await fetch(`${API_BASE}/recommendations?limit=${limit}&offset=${reset ? 0 : offset}`);
             const data = await response.json();
 
             const container = document.getElementById('recommendationsContent');
 
             if (!data.recommendations || data.recommendations.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <p>Zatiaľ neboli vygenerované žiadne odporúčania.</p>
-                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Spustite analýzu na vytvorenie odporúčaní.</p>
-                    </div>
-                `;
+                if (reset || offset === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <p>Zatiaľ neboli vygenerované žiadne odporúčania.</p>
+                            <p style="font-size: 0.9rem; margin-top: 0.5rem;">Spustite analýzu na vytvorenie odporúčaní.</p>
+                        </div>
+                    `;
+                }
+                paginationState.recommendations.hasMore = false;
                 return;
             }
 
+            // Update pagination state
+            paginationState.recommendations.hasMore = data.hasMore || false;
+            if (!reset) {
+                paginationState.recommendations.offset += data.recommendations.length;
+            } else {
+                paginationState.recommendations.offset = data.recommendations.length;
+            }
+
             const html = `
-                <ul class="recommendation-list">
+                <ul class="recommendation-list" id="recommendationsList">
                     ${data.recommendations.map(rec => `
                         <li class="recommendation-item">
                             <h4>Priority ${rec.priority}: ${rec.title}</h4>
@@ -359,16 +449,74 @@
                         </li>
                     `).join('')}
                 </ul>
+                ${paginationState.recommendations.hasMore ? `
+                    <button class="refresh-btn" onclick="loadMoreRecommendations()" style="margin-top: 1rem;">
+                        📄 Načítať viac odporúčaní
+                    </button>
+                ` : `
+                    <p style="text-align: center; color: #7f8c8d; margin-top: 1rem;">
+                        Zobrazené všetky odporúčania (${data.total || paginationState.recommendations.offset})
+                    </p>
+                `}
             `;
 
-            container.innerHTML = html;
+            if (reset) {
+                container.innerHTML = html;
+            } else {
+                // Append to existing list
+                const existingList = document.getElementById('recommendationsList');
+                if (existingList) {
+                    data.recommendations.forEach(rec => {
+                        const li = document.createElement('li');
+                        li.className = 'recommendation-item';
+                        li.innerHTML = `
+                            <h4>Priority ${rec.priority}: ${rec.title}</h4>
+                            <p>${rec.description}</p>
+                            <p><strong>Odporúčaná akcia:</strong> ${rec.recommended_action}</p>
+                            <div class="recommendation-meta">
+                                <span class="badge badge-${rec.urgency}">${rec.urgency}</span>
+                                <span><strong>Investícia:</strong> €${rec.investment_required}</span>
+                                <span class="roi-highlight"><strong>ROI:</strong> ${rec.annual_roi_percentage.toFixed(0)}%</span>
+                                <span><strong>Návratnosť:</strong> ${rec.payback_period_days} dní</span>
+                                <span><strong>Úspora:</strong> €${rec.estimated_savings_per_day.toFixed(2)}/deň</span>
+                            </div>
+                        `;
+                        existingList.appendChild(li);
+                    });
+
+                    // Update button
+                    const oldButton = container.querySelector('button');
+                    if (oldButton) oldButton.remove();
+                    const oldFooter = container.querySelector('p[style*="text-align: center"]');
+                    if (oldFooter) oldFooter.remove();
+
+                    if (paginationState.recommendations.hasMore) {
+                        const btn = document.createElement('button');
+                        btn.className = 'refresh-btn';
+                        btn.style.marginTop = '1rem';
+                        btn.onclick = loadMoreRecommendations;
+                        btn.textContent = '📄 Načítať viac odporúčaní';
+                        container.appendChild(btn);
+                    } else {
+                        const p = document.createElement('p');
+                        p.style.cssText = 'text-align: center; color: #7f8c8d; margin-top: 1rem;';
+                        p.textContent = `Zobrazené všetky odporúčania (${data.total || paginationState.recommendations.offset})`;
+                        container.appendChild(p);
+                    }
+                }
+            }
+        }
+
+        async function loadMoreRecommendations() {
+            await loadRecommendations(false);
         }
 
         // Load dashboard on page load
         loadDashboard();
 
-        // Auto-refresh every 30 seconds
-        setInterval(loadDashboard, 30000);
+        // Auto-refresh disabled by default to avoid resetting pagination
+        // Uncomment to enable:
+        // setInterval(loadDashboard, 60000); // Refresh every 60 seconds
     </script>
 </body>
 </html>

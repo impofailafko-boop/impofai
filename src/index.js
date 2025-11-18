@@ -326,15 +326,27 @@ app.post('/api/v1/analytics/generate-recommendations', async (req, res) => {
 
 /**
  * GET /api/v1/patterns
- * Get all patterns
+ * Get patterns with pagination
+ * Query params: limit (default: 20), offset (default: 0)
  */
 app.get('/api/v1/patterns', (req, res) => {
   try {
-    const patterns = patternEngine.getActivePatterns();
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = parseInt(req.query.offset) || 0;
+
+    // Get all patterns first to calculate total
+    const allPatterns = patternEngine.getActivePatterns();
+    const total = allPatterns.length;
+
+    // Apply pagination
+    const patterns = allPatterns.slice(offset, offset + limit);
 
     res.json({
       patterns,
-      total: patterns.length
+      total,
+      limit,
+      offset,
+      hasMore: offset + patterns.length < total
     });
   } catch (error) {
     console.error('Error getting patterns:', error);
@@ -347,16 +359,28 @@ app.get('/api/v1/patterns', (req, res) => {
 
 /**
  * GET /api/v1/recommendations
- * Get all recommendations
+ * Get recommendations with pagination
+ * Query params: status, limit (default: 20), offset (default: 0)
  */
 app.get('/api/v1/recommendations', (req, res) => {
   try {
     const { status } = req.query;
-    const recommendations = patternEngine.getRecommendations(status);
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = parseInt(req.query.offset) || 0;
+
+    // Get all recommendations first to calculate total
+    const allRecommendations = patternEngine.getRecommendations(status);
+    const total = allRecommendations.length;
+
+    // Apply pagination
+    const recommendations = allRecommendations.slice(offset, offset + limit);
 
     res.json({
       recommendations,
-      total: recommendations.length
+      total,
+      limit,
+      offset,
+      hasMore: offset + recommendations.length < total
     });
   } catch (error) {
     console.error('Error getting recommendations:', error);
