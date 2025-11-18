@@ -200,8 +200,8 @@ async function runPhase55IntegrationTest() {
     const summary = {
       totalConversations: db.prepare('SELECT COUNT(*) as count FROM conversations').get().count,
       totalWorkers: db.prepare('SELECT COUNT(*) as count FROM workers').get().count,
-      activePatterns: db.prepare('SELECT COUNT(*) as count FROM patterns WHERE status = "active"').get().count,
-      pendingRecommendations: db.prepare('SELECT COUNT(*) as count FROM recommendations WHERE status = "pending"').get().count
+      activePatterns: db.prepare(`SELECT COUNT(*) as count FROM patterns WHERE status = 'active'`).get().count,
+      pendingRecommendations: db.prepare(`SELECT COUNT(*) as count FROM recommendations WHERE status = 'pending'`).get().count
     };
 
     console.log(`  📊 Total Conversations: ${summary.totalConversations}`);
