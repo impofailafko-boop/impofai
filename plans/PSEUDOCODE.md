@@ -882,11 +882,871 @@ END FUNCTION
 
 ---
 
-This is the start of the PSEUDOCODE.md. Should I continue with the remaining 24 components? This will be a very long document (probably 3000+ lines).
+# 2. Learning System
 
-Would you like me to:
-1. **Continue writing all 27 components** (comprehensive, takes time)
-2. **Write key components first** (Learning System, Analytics) and leave infrastructure for later
-3. **Create outline structure** for all 27, then fill in details for most critical ones
+## 2.1 NightlyLearner
 
-What's your preference? 🎯
+**Purpose:** Automated overnight pattern discovery, causal analysis, and recommendation generation
+
+### Data Structures
+
+```
+LearningSession {
+  sessionId: UUID
+  startTime: Timestamp
+  endTime: Timestamp
+  dateRange: { start: Date, end: Date }
+  conversationsAnalyzed: Integer
+  patternsDiscovered: Array<Pattern>
+  causalEdges: Array<CausalEdge>
+  recommendations: Array<Recommendation>
+  performanceStats: Object
+}
+
+Pattern {
+  patternId: UUID
+  type: Enum(TEMPORAL, SPATIAL, CAUSAL, CORRELATION)
+  description: String
+  confidence: Float (0.0 to 1.0)
+  evidence: Array<ConversationReference>
+  affectedWorkers: Array<String>
+  occurrences: Integer
+  firstSeen: Timestamp
+  lastSeen: Timestamp
+}
+
+CausalEdge {
+  cause: String
+  effect: String
+  uplift: Float (impact measurement)
+  propensityScore: Float (0.0 to 1.0)
+  observations: Integer
+  confidence: Float (0.0 to 1.0)
+  confounders: Array<String> (hidden variables)
+}
+
+Recommendation {
+  recommendationId: UUID
+  priority: Enum(LOW, MEDIUM, HIGH, CRITICAL)
+  issue: String
+  impact: String
+  solution: String
+  investment: Float (cost in €)
+  roi: Object { paybackDays: Integer, weeklySavings: Float }
+  confidence: Float (0.0 to 1.0)
+  evidence: Array<ConversationReference>
+}
+```
+
+### Main Algorithm
+
+```
+FUNCTION runNightlyLearning():
+  LOG info "Starting nightly learning cycle"
+
+  session = new LearningSession {
+    sessionId: generateUUID()
+    startTime: getCurrentTimestamp()
+    dateRange: {
+      start: getYesterday(),
+      end: getToday()
+    }
+  }
+
+  TRY:
+    // 1. Load conversations from period
+    conversations = database.query("
+      SELECT * FROM transcripts
+      WHERE created_at >= ? AND created_at < ?
+    ", [session.dateRange.start, session.dateRange.end])
+
+    session.conversationsAnalyzed = conversations.length
+
+    IF conversations.length == 0:
+      LOG info "No conversations to analyze"
+      RETURN
+
+    // 2. Pattern Discovery
+    session.patternsDiscovered = discoverPatterns(conversations)
+
+    // 3. Causal Analysis
+    session.causalEdges = analyzeCausalRelationships(conversations, session.patternsDiscovered)
+
+    // 4. Generate Recommendations
+    session.recommendations = generateRecommendations(
+      session.patternsDiscovered,
+      session.causalEdges
+    )
+
+    // 5. Consolidate Skills (successful interview patterns)
+    consolidateSkills(conversations)
+
+    // 6. Reflexion Learning (critique conversations)
+    performReflexion(conversations)
+
+    // 7. Update Knowledge Graph
+    updateKnowledgeGraph(conversations, session.patternsDiscovered)
+
+    // 8. Generate Report
+    report = generateNightlyReport(session)
+
+    // 9. Save everything
+    saveNightlySession(session, report)
+
+    session.endTime = getCurrentTimestamp()
+    duration = (session.endTime - session.startTime) / 60000 // minutes
+
+    LOG info "Nightly learning completed in " + duration + " minutes"
+    LOG info "Patterns discovered: " + session.patternsDiscovered.length
+    LOG info "Recommendations generated: " + session.recommendations.length
+
+  CATCH Error as e:
+    LOG error "Nightly learning failed: " + e.message
+    // Save partial results
+    savePartialResults(session)
+
+END FUNCTION
+
+
+FUNCTION discoverPatterns(conversations):
+  patterns = []
+
+  // 1. Temporal Patterns (time-based)
+  temporalPatterns = discoverTemporalPatterns(conversations)
+  patterns.addAll(temporalPatterns)
+
+  // 2. Spatial Patterns (location-based)
+  spatialPatterns = discoverSpatialPatterns(conversations)
+  patterns.addAll(spatialPatterns)
+
+  // 3. Issue Clustering (same issue, multiple workers)
+  clusterPatterns = discoverIssueClusters(conversations)
+  patterns.addAll(clusterPatterns)
+
+  // 4. Correlation Patterns
+  correlationPatterns = discoverCorrelations(conversations)
+  patterns.addAll(correlationPatterns)
+
+  RETURN patterns
+
+END FUNCTION
+
+
+FUNCTION discoverIssueClusters(conversations):
+  // Find: Multiple workers reporting same issue
+  clusters = []
+
+  // Group by issue + location
+  issueGroups = new Map()
+
+  FOR EACH conversation IN conversations:
+    FOR EACH issue IN conversation.analysis.issues:
+      key = issue.type + "|" + (issue.location || "unknown")
+
+      IF NOT issueGroups.has(key):
+        issueGroups.set(key, [])
+
+      issueGroups.get(key).push({
+        workerId: conversation.workerId,
+        workerName: conversation.workerName,
+        timestamp: conversation.created_at,
+        severity: issue.severity,
+        description: issue.description
+      })
+
+  // Identify clusters (2+ workers)
+  FOR EACH [key, reports] IN issueGroups:
+    IF reports.length >= 2:
+      [issueType, location] = key.split("|")
+
+      pattern = new Pattern {
+        patternId: generateUUID()
+        type: SPATIAL
+        description: reports.length + " workers reported " + issueType + " at " + location
+        confidence: calculateConfidence(reports.length, conversations.length)
+        evidence: reports
+        affectedWorkers: reports.map(r => r.workerId)
+        occurrences: reports.length
+        firstSeen: min(reports.map(r => r.timestamp))
+        lastSeen: max(reports.map(r => r.timestamp))
+      }
+
+      clusters.push(pattern)
+
+  RETURN clusters
+
+END FUNCTION
+
+
+FUNCTION discoverTemporalPatterns(conversations):
+  // Find: Issues that happen at specific times
+  patterns = []
+
+  // Group by day of week
+  dayOfWeekGroups = groupByDayOfWeek(conversations)
+
+  FOR EACH [dayOfWeek, dayConversations] IN dayOfWeekGroups:
+    issues = extractAllIssues(dayConversations)
+
+    // Check if certain issues spike on specific days
+    FOR EACH issueType IN getUniqueIssueTypes(issues):
+      issueCount = issues.filter(i => i.type == issueType).length
+      avgCount = getAverageIssueCount(issueType, conversations)
+
+      // If 50% more than average
+      IF issueCount > avgCount * 1.5:
+        pattern = new Pattern {
+          patternId: generateUUID()
+          type: TEMPORAL
+          description: issueType + " spikes on " + dayOfWeek + "s"
+          confidence: calculateTemporalConfidence(issueCount, avgCount)
+          evidence: issues.filter(i => i.type == issueType)
+          occurrences: issueCount
+          firstSeen: min(dayConversations.map(c => c.created_at))
+          lastSeen: max(dayConversations.map(c => c.created_at))
+        }
+
+        patterns.push(pattern)
+
+  RETURN patterns
+
+END FUNCTION
+
+
+FUNCTION analyzeCausalRelationships(conversations, patterns):
+  causalEdges = []
+
+  // Use AgentDB CausalMemoryGraph
+  causalGraph = new CausalMemoryGraph(database)
+
+  FOR EACH pattern IN patterns:
+    // Look for cause-effect relationships
+
+    // Example: Scanner breaks → Workers wait → Productivity drops
+    IF pattern.type contains "equipment_malfunction":
+      // Find related productivity mentions
+      productivityIssues = findRelatedIssues(conversations, "productivity", pattern.evidence)
+
+      IF productivityIssues.length > 0:
+        // Calculate causal relationship
+        uplift = calculateProductivityImpact(productivityIssues)
+        propensity = calculatePropensityScore(pattern.evidence, productivityIssues)
+
+        edge = new CausalEdge {
+          cause: pattern.description
+          effect: "Productivity loss"
+          uplift: uplift
+          propensityScore: propensity
+          observations: pattern.occurrences
+          confidence: propensity * 0.9 // slightly conservative
+          confounders: detectConfounders(pattern, productivityIssues)
+        }
+
+        causalEdges.push(edge)
+
+        // Add to AgentDB
+        causalGraph.addEdge(edge.cause, edge.effect, {
+          uplift: edge.uplift,
+          propensity: edge.propensityScore,
+          observations: edge.observations
+        })
+
+  RETURN causalEdges
+
+END FUNCTION
+
+
+FUNCTION generateRecommendations(patterns, causalEdges):
+  recommendations = []
+
+  FOR EACH pattern IN patterns:
+    // Only generate recommendations for actionable patterns
+    IF pattern.confidence < 0.6:
+      CONTINUE // Low confidence, skip
+
+    recommendation = NULL
+
+    // Equipment malfunction → Replace/repair
+    IF pattern.description contains "equipment" OR pattern.description contains "scanner":
+      recommendation = generateEquipmentRecommendation(pattern, causalEdges)
+
+    // Supply shortage → Increase order
+    ELSE IF pattern.description contains "supply" OR pattern.description contains "shortage":
+      recommendation = generateSupplyRecommendation(pattern, causalEdges)
+
+    // Process issue → Improve process
+    ELSE IF pattern.description contains "process" OR pattern.description contains "delay":
+      recommendation = generateProcessRecommendation(pattern, causalEdges)
+
+    IF recommendation is NOT NULL:
+      recommendations.push(recommendation)
+
+  RETURN recommendations
+
+END FUNCTION
+
+
+FUNCTION generateEquipmentRecommendation(pattern, causalEdges):
+  // Extract equipment name from pattern
+  equipment = extractEquipmentName(pattern.description)
+
+  // Find causal impact
+  causalImpact = causalEdges.find(e => e.cause contains equipment)
+
+  // Calculate cost impact
+  affectedWorkers = pattern.affectedWorkers.length
+  hoursLostPerDay = estimateHoursLost(pattern.occurrences)
+  costPerHour = 15 // €15/hour average
+  dailyCost = affectedWorkers * hoursLostPerDay * costPerHour
+
+  // Estimate replacement cost (could be from database or ML)
+  replacementCost = estimateReplacementCost(equipment) || 300 // default €300
+
+  // Calculate ROI
+  paybackDays = Math.ceil(replacementCost / dailyCost)
+  weeklySavings = dailyCost * 7
+
+  recommendation = new Recommendation {
+    recommendationId: generateUUID()
+    priority: calculatePriority(dailyCost, pattern.confidence)
+    issue: pattern.description
+    impact: "€" + dailyCost + "/day productivity loss (" + affectedWorkers + " workers affected)"
+    solution: "Replace " + equipment
+    investment: replacementCost
+    roi: {
+      paybackDays: paybackDays
+      weeklySavings: weeklySavings
+    }
+    confidence: pattern.confidence
+    evidence: pattern.evidence
+  }
+
+  RETURN recommendation
+
+END FUNCTION
+```
+
+### Integration Points
+
+- **Input:** Conversations from database (previous 24 hours)
+- **Output:** Patterns, causal edges, recommendations saved to database
+- **Dependencies:**
+  - CausalMemoryGraph (AgentDB)
+  - SkillLibrary (consolidate successful patterns)
+  - ReflexionMemory (learn from conversation quality)
+  - Knowledge Graph Builder
+  - Database
+
+### Error Handling
+
+- No conversations → skip gracefully
+- Analysis failures → save partial results
+- Database errors → retry queue
+- Long runtime → checkpoint progress
+
+---
+
+## 2.2 ReflexionMemory Integration
+
+**Purpose:** AI self-improvement through conversation critique
+
+### Data Structures
+
+```
+ReflexionEpisode {
+  episodeId: UUID
+  conversationId: UUID
+  task: String (e.g., "interview_equipment_issue")
+  actions: Array<String> (questions asked)
+  outcome: Enum(SUCCESS, PARTIAL_SUCCESS, FAILURE)
+  critique: String
+  successMetrics: Object {
+    detailLevel: Float (0.0 to 1.0)
+    completeness: Float (0.0 to 1.0)
+    workerEngagement: Float (0.0 to 1.0)
+  }
+  strategiesUsed: Array<String>
+  lessonsLearned: String
+  embedding: Vector (for similarity search)
+}
+```
+
+### Main Algorithm
+
+```
+FUNCTION performReflexion(conversations):
+  reflexionMemory = new ReflexionMemory(database)
+
+  FOR EACH conversation IN conversations:
+    // Evaluate conversation quality
+    outcome = evaluateConversationOutcome(conversation)
+
+    // Extract strategies used
+    strategies = extractStrategiesUsed(conversation)
+
+    // Generate critique
+    critique = generateCritique(conversation, outcome)
+
+    // Create episode
+    episode = new ReflexionEpisode {
+      episodeId: generateUUID()
+      conversationId: conversation.sessionId
+      task: categorizeConversationType(conversation)
+      actions: conversation.conversationState.questionHistory
+      outcome: outcome
+      critique: critique
+      successMetrics: calculateSuccessMetrics(conversation)
+      strategiesUsed: strategies
+      lessonsLearned: extractLessons(critique, outcome)
+      embedding: generateEmbedding(critique + " " + strategies.join(" "))
+    }
+
+    // Store in ReflexionMemory
+    reflexionMemory.store(episode)
+
+  // Analyze patterns in success/failure
+  analyzeReflexionPatterns(reflexionMemory)
+
+END FUNCTION
+
+
+FUNCTION evaluateConversationOutcome(conversation):
+  // Criteria for success
+  completenessScore = checkInformationCompleteness(conversation.conversationState)
+  detailScore = calculateDetailLevel(conversation.transcript)
+  engagementScore = calculateWorkerEngagement(conversation.transcript)
+
+  averageScore = (completenessScore + detailScore + engagementScore) / 3
+
+  IF averageScore >= 0.8:
+    RETURN SUCCESS
+  ELSE IF averageScore >= 0.5:
+    RETURN PARTIAL_SUCCESS
+  ELSE:
+    RETURN FAILURE
+
+END FUNCTION
+
+
+FUNCTION generateCritique(conversation, outcome):
+  critique = ""
+
+  // What worked well
+  IF outcome == SUCCESS OR outcome == PARTIAL_SUCCESS:
+    successfulQuestions = findSuccessfulQuestions(conversation)
+    critique += "Successful strategies: " + successfulQuestions.join(", ") + ". "
+
+  // What didn't work
+  IF outcome == FAILURE OR outcome == PARTIAL_SUCCESS:
+    failedQuestions = findVagueOrUnproductiveQuestions(conversation)
+    critique += "Ineffective approaches: " + failedQuestions.join(", ") + ". "
+
+  // Specific improvements
+  missingInfo = findMissingInformation(conversation.conversationState)
+  IF missingInfo.length > 0:
+    critique += "Missing information: " + missingInfo.join(", ") + ". "
+    critique += "Should have asked about: " + generateMissedQuestions(missingInfo).join(", ")
+
+  RETURN critique
+
+END FUNCTION
+
+
+FUNCTION analyzeReflexionPatterns(reflexionMemory):
+  // Find: What question strategies have highest success rate?
+
+  allEpisodes = reflexionMemory.retrieveAll()
+
+  successfulEpisodes = allEpisodes.filter(e => e.outcome == SUCCESS)
+  failedEpisodes = allEpisodes.filter(e => e.outcome == FAILURE)
+
+  // Extract common strategies from successful episodes
+  successfulStrategies = extractCommonPatterns(successfulEpisodes.map(e => e.strategiesUsed))
+
+  // Extract anti-patterns from failed episodes
+  antiPatterns = extractCommonPatterns(failedEpisodes.map(e => e.strategiesUsed))
+
+  // Update SkillLibrary with successful strategies
+  FOR EACH strategy IN successfulStrategies:
+    skillLibrary.updateSuccessRate(strategy, 1.0)
+
+  // Demote anti-patterns
+  FOR EACH antiPattern IN antiPatterns:
+    skillLibrary.updateSuccessRate(antiPattern, 0.0)
+
+  LOG info "Reflexion analysis complete"
+  LOG info "Successful strategies: " + successfulStrategies.join(", ")
+  LOG info "Anti-patterns: " + antiPatterns.join(", ")
+
+END FUNCTION
+```
+
+### Integration Points
+
+- **Input:** Completed conversations
+- **Output:** Reflexion episodes stored, SkillLibrary updated
+- **Dependencies:**
+  - ReflexionMemory (AgentDB)
+  - SkillLibrary
+  - Embedding generation
+
+---
+
+## 2.3 SkillLibrary Integration
+
+**Purpose:** Consolidate and retrieve effective interview patterns
+
+### Data Structures
+
+```
+Skill {
+  skillId: UUID
+  skillName: String
+  skillType: Enum(QUESTIONING_PATTERN, TOPIC_HANDLER, CONVERSATION_STRATEGY)
+  description: String
+  examples: Array<String> (example questions/approaches)
+  successRate: Float (0.0 to 1.0)
+  usageCount: Integer
+  linkedSkills: Array<UUID> (related skills)
+  embedding: Vector (for semantic search)
+  language: String (default: "sk")
+}
+```
+
+### Main Algorithm
+
+```
+FUNCTION consolidateSkills(conversations):
+  skillLibrary = new SkillLibrary(database)
+
+  FOR EACH conversation IN conversations:
+    IF conversation.outcome == SUCCESS:
+      // Extract successful question patterns
+      questions = conversation.conversationState.questionHistory
+
+      FOR EACH question IN questions:
+        // Check if similar skill exists
+        similarSkills = skillLibrary.search(question, topK: 1)
+
+        IF similarSkills.length > 0 AND similarity(similarSkills[0], question) > 0.8:
+          // Update existing skill
+          skillLibrary.incrementUsageCount(similarSkills[0].skillId)
+          skillLibrary.addExample(similarSkills[0].skillId, question)
+        ELSE:
+          // Create new skill
+          skill = new Skill {
+            skillId: generateUUID()
+            skillName: summarizeQuestion(question)
+            skillType: QUESTIONING_PATTERN
+            description: "Effective question for " + conversation.conversationState.currentTopic
+            examples: [question]
+            successRate: 1.0
+            usageCount: 1
+            linkedSkills: []
+            embedding: generateEmbedding(question)
+            language: "sk"
+          }
+
+          skillLibrary.add(skill)
+
+END FUNCTION
+
+
+FUNCTION searchSkillLibrary(goal, topic, language):
+  skillLibrary = new SkillLibrary(database)
+
+  // Semantic search based on goal + topic
+  query = goal + " " + topic
+  queryEmbedding = generateEmbedding(query)
+
+  // Search with filters
+  results = skillLibrary.search(queryEmbedding, {
+    language: language,
+    skillType: QUESTIONING_PATTERN,
+    minSuccessRate: 0.6,
+    topK: 3
+  })
+
+  IF results.length > 0:
+    // Return highest success rate question
+    bestSkill = results.sortBy(s => s.successRate).first()
+    RETURN random(bestSkill.examples) // Pick random example for variety
+
+  ELSE:
+    // Fallback to default questions
+    RETURN getDefaultQuestion(goal)
+
+END FUNCTION
+```
+
+---
+
+## 2.4 CausalMemoryGraph Integration
+
+**Purpose:** Map cause-effect relationships with ROI calculations
+
+Algorithms integrated into NightlyLearner (Section 2.1) above.
+
+---
+
+## 2.5 Conversation Strategy Planner
+
+**Purpose:** Goal-oriented interview planning for complete information extraction
+
+### Data Structures
+
+```
+ConversationGoal {
+  goalId: UUID
+  type: Enum(
+    GATHER_TIMING,      // When did it happen?
+    GATHER_FREQUENCY,   // How often?
+    GATHER_IMPACT,      // How does it affect work?
+    GATHER_LOCATION,    // Where?
+    GATHER_ATTEMPTED_FIXES,  // What did they try?
+    GATHER_ROOT_CAUSE   // Why did it happen?
+  )
+  completed: Boolean
+  priority: Integer (1-10)
+}
+
+ConversationPlan {
+  planId: UUID
+  goals: Array<ConversationGoal>
+  currentGoalIndex: Integer
+  strictness: Integer (1-10, from config)
+  allowDeviation: Boolean (from config)
+  completenessThreshold: Float (0.0 to 1.0)
+}
+```
+
+### Main Algorithm
+
+```
+FUNCTION conversationPlanner.generatePlan(conversationState, strictness):
+  plan = new ConversationPlan {
+    planId: generateUUID()
+    goals: []
+    currentGoalIndex: 0
+    strictness: strictness
+    allowDeviation: strictness < 6 // Allow deviation if strictness < 6
+    completenessThreshold: 0.8
+  }
+
+  // Determine missing information
+  gathered = conversationState.informationGathered
+
+  // Create goals for missing information (ordered by priority)
+  IF NOT gathered.when:
+    plan.goals.push(new ConversationGoal {
+      goalId: generateUUID()
+      type: GATHER_TIMING
+      completed: FALSE
+      priority: 9 // High priority
+    })
+
+  IF NOT gathered.frequency:
+    plan.goals.push(new ConversationGoal {
+      goalId: generateUUID()
+      type: GATHER_FREQUENCY
+      completed: FALSE
+      priority: 7
+    })
+
+  IF NOT gathered.impact:
+    plan.goals.push(new ConversationGoal {
+      goalId: generateUUID()
+      type: GATHER_IMPACT
+      completed: FALSE
+      priority: 10 // Highest priority (for ROI)
+    })
+
+  IF NOT gathered.attemptedFixes:
+    plan.goals.push(new ConversationGoal {
+      goalId: generateUUID()
+      type: GATHER_ATTEMPTED_FIXES
+      completed: FALSE
+      priority: 6
+    })
+
+  // Sort by priority (highest first)
+  plan.goals = plan.goals.sortBy(g => g.priority, descending: TRUE)
+
+  RETURN plan
+
+END FUNCTION
+
+
+FUNCTION conversationPlanner.getNextGoal():
+  // Find first incomplete goal
+  FOR EACH goal IN plan.goals:
+    IF NOT goal.completed:
+      RETURN goal
+
+  RETURN NULL // All goals completed
+
+END FUNCTION
+
+
+FUNCTION conversationPlanner.isComplete(conversationState):
+  completeness = calculateCompleteness(conversationState)
+
+  RETURN completeness >= plan.completenessThreshold
+
+END FUNCTION
+
+
+FUNCTION conversationPlanner.updateFromResponse(workerResponse, conversationState):
+  // Check if response answers current goal
+
+  currentGoal = getNextGoal()
+
+  IF currentGoal is NULL:
+    RETURN // Already complete
+
+  answered = FALSE
+
+  SWITCH currentGoal.type:
+    CASE GATHER_TIMING:
+      IF detectsTiming(workerResponse):
+        conversationState.informationGathered.when = TRUE
+        currentGoal.completed = TRUE
+        answered = TRUE
+
+    CASE GATHER_FREQUENCY:
+      IF detectsFrequency(workerResponse):
+        conversationState.informationGathered.frequency = TRUE
+        currentGoal.completed = TRUE
+        answered = TRUE
+
+    CASE GATHER_IMPACT:
+      IF detectsImpact(workerResponse):
+        conversationState.informationGathered.impact = TRUE
+        currentGoal.completed = TRUE
+        answered = TRUE
+
+    CASE GATHER_ATTEMPTED_FIXES:
+      IF detectsAttemptedFixes(workerResponse):
+        conversationState.informationGathered.attemptedFixes = TRUE
+        currentGoal.completed = TRUE
+        answered = TRUE
+
+  // If answer was vague, keep goal incomplete
+  IF NOT answered AND plan.strictness >= 7:
+    // Strict mode: will ask again more directly
+    plan.currentGoalIndex-- // Stay on same goal
+
+  // Dynamic replanning: If worker mentions something urgent, reorder
+  IF detectsUrgency(workerResponse) AND plan.allowDeviation:
+    reprioritizeGoals(GATHER_IMPACT) // Prioritize impact for urgent issues
+
+END FUNCTION
+
+
+FUNCTION detectsTiming(text):
+  timingKeywords = [
+    "dnes", "včera", "minulý týždeň", "ráno", "poobede",
+    "o 8:00", "pred hodinou", "už týždeň"
+  ]
+
+  textLower = toLowerCase(text)
+
+  FOR EACH keyword IN timingKeywords:
+    IF textLower contains keyword:
+      RETURN TRUE
+
+  RETURN FALSE
+
+END FUNCTION
+
+
+FUNCTION detectsFrequency(text):
+  frequencyKeywords = [
+    "často", "denne", "každý deň", "niekedy", "vždy",
+    "prvýkrát", "opäť", "znova", "už druhýkrát"
+  ]
+
+  textLower = toLowerCase(text)
+
+  FOR EACH keyword IN frequencyKeywords:
+    IF textLower contains keyword:
+      RETURN TRUE
+
+  RETURN FALSE
+
+END FUNCTION
+```
+
+### Integration Points
+
+- **Input:** Conversation state, config (strictness level)
+- **Output:** Conversation plan with ordered goals
+- **Dependencies:**
+  - SkillLibrary (get questions for each goal type)
+  - Configuration system (strictness, deviation settings)
+
+### Configurable Behavior (FR-6.7)
+
+- **Strictness 1-3:** Very loose, AI often deviates, natural conversation
+- **Strictness 4-6:** Balanced, follows plan but allows some deviation
+- **Strictness 7-10:** Strict, methodically follows plan, re-asks if vague
+
+---
+
+## 2.6 AgentDB Core Orchestration
+
+**Purpose:** Coordinate all AgentDB components and manage database lifecycle
+
+### Main Algorithm
+
+```
+FUNCTION initializeAgentDB():
+  // Create database
+  db = await createDatabase({
+    filename: './data/impofai.db'
+  })
+
+  // Initialize embedder (local, no API key)
+  embedder = new EmbeddingService({
+    provider: 'local'
+  })
+
+  // Initialize learning components
+  learningSystem = new LearningSystem(db, embedder)
+  reasoningBank = new ReasoningBank(db, embedder)
+  reflexionMemory = new ReflexionMemory(db, embedder)
+  skillLibrary = new SkillLibrary(db, embedder)
+  causalGraph = new CausalMemoryGraph(db, embedder)
+  nightlyLearner = new NightlyLearner(db, embedder)
+
+  // Create custom tables (non-AgentDB)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS transcripts (...);
+    CREATE TABLE IF NOT EXISTS worker_profiles (...);
+    CREATE TABLE IF NOT EXISTS issues (...);
+    CREATE TABLE IF NOT EXISTS voice_agent_config (...);
+    -- etc.
+  `)
+
+  LOG info "AgentDB initialized successfully"
+
+  RETURN {
+    db,
+    learningSystem,
+    reflexionMemory,
+    skillLibrary,
+    causalGraph,
+    nightlyLearner
+  }
+
+END FUNCTION
+```
+
+---
+
+This completes the Learning System section. Should I continue with:
+1. **Admin Dashboard** (including Configuration Panel 5.7)
+2. **Analytics Engine** (pattern detection, recommendations)
+3. **Data flows and integration points**
+
+Let me know and I'll continue! 🚀
