@@ -1744,9 +1744,1125 @@ END FUNCTION
 
 ---
 
-This completes the Learning System section. Should I continue with:
-1. **Admin Dashboard** (including Configuration Panel 5.7)
-2. **Analytics Engine** (pattern detection, recommendations)
-3. **Data flows and integration points**
+# 3. Analytics Engine
 
-Let me know and I'll continue! 🚀
+## 3.1 Knowledge Graph Builder
+
+**Purpose:** Automatically construct company knowledge graph from conversations
+
+### Data Structures
+
+```
+Entity {
+  entityId: UUID
+  entityType: Enum(PERSON, LOCATION, EQUIPMENT, PROCESS, PRODUCT, ISSUE)
+  entityName: String
+  attributes: Object (flexible JSON)
+  mentionCount: Integer
+  lastMentioned: Timestamp
+  centralityScore: Float (graph importance 0.0 to 1.0)
+}
+
+Relationship {
+  relationshipId: UUID
+  sourceEntityId: UUID
+  targetEntityId: UUID
+  relationshipType: Enum(
+    WORKS_IN,        // Person → Location
+    REPORTS_TO,      // Person → Person
+    USES,            // Person → Equipment
+    LOCATED_IN,      // Equipment → Location
+    CAUSED_BY,       // Issue → Equipment/Process
+    AFFECTS,         // Issue → Process/Product
+    IMPACTS          // Issue → Metric (productivity, quality)
+  )
+  strength: Float (0.0 to 1.0)
+  confidence: Float (0.0 to 1.0)
+  firstObserved: Timestamp
+  lastObserved: Timestamp
+  observationCount: Integer
+}
+
+KnowledgeGraph {
+  entities: Map<UUID, Entity>
+  relationships: Array<Relationship>
+  centralityScores: Map<UUID, Float>
+}
+```
+
+### Main Algorithm
+
+```
+FUNCTION updateKnowledgeGraph(conversations, patterns):
+  graph = loadKnowledgeGraph() || new KnowledgeGraph()
+
+  FOR EACH conversation IN conversations:
+    // Extract entities from this conversation
+    entities = extractEntitiesFromConversation(conversation)
+
+    FOR EACH entity IN entities:
+      // Add or update entity
+      IF graph.entities.has(entity.entityName):
+        existingEntity = graph.entities.get(entity.entityName)
+        existingEntity.mentionCount++
+        existingEntity.lastMentioned = conversation.created_at
+        // Merge attributes
+        existingEntity.attributes = mergeAttributes(
+          existingEntity.attributes,
+          entity.attributes
+        )
+      ELSE:
+        entity.entityId = generateUUID()
+        entity.mentionCount = 1
+        entity.lastMentioned = conversation.created_at
+        entity.centralityScore = 0.0 // Will calculate later
+        graph.entities.set(entity.entityName, entity)
+
+    // Extract relationships
+    relationships = extractRelationshipsFromConversation(conversation, graph.entities)
+
+    FOR EACH relationship IN relationships:
+      addOrUpdateRelationship(graph, relationship)
+
+  // Calculate centrality scores (importance)
+  calculateCentralityScores(graph)
+
+  // Save updated graph
+  saveKnowledgeGraph(graph)
+
+  RETURN graph
+
+END FUNCTION
+
+
+FUNCTION extractEntitiesFromConversation(conversation):
+  entities = []
+
+  // Worker is always a PERSON entity
+  workerEntity = new Entity {
+    entityType: PERSON
+    entityName: conversation.workerName || conversation.workerId
+    attributes: {
+      workerId: conversation.workerId
+      role: conversation.role || "unknown"
+    }
+  }
+  entities.push(workerEntity)
+
+  // Extract from analysis (already parsed by Conversation Analyzer)
+  FOR EACH entity IN conversation.analysis.entities:
+    entities.push(entity)
+
+  // Extract equipment mentions
+  equipmentMentions = extractEquipmentMentions(conversation.transcript)
+  FOR EACH equipment IN equipmentMentions:
+    entities.push(new Entity {
+      entityType: EQUIPMENT
+      entityName: equipment.name
+      attributes: {
+        location: equipment.location || null
+        status: equipment.status || "unknown"
+      }
+    })
+
+  // Extract location mentions
+  locationMentions = extractLocationMentions(conversation.transcript)
+  FOR EACH location IN locationMentions:
+    entities.push(new Entity {
+      entityType: LOCATION
+      entityName: location.name
+      attributes: {
+        type: location.type || "department"
+      }
+    })
+
+  // Extract issues as entities
+  FOR EACH issue IN conversation.analysis.issues:
+    entities.push(new Entity {
+      entityType: ISSUE
+      entityName: issue.type
+      attributes: {
+        description: issue.description
+        severity: issue.severity
+        location: issue.location
+      }
+    })
+
+  RETURN entities
+
+END FUNCTION
+
+
+FUNCTION extractRelationshipsFromConversation(conversation, entities):
+  relationships = []
+
+  workerEntity = entities.find(e => e.entityName == conversation.workerName)
+
+  // Worker → WORKS_IN → Location
+  IF conversation.analysis.location:
+    locationEntity = entities.find(e =>
+      e.entityType == LOCATION AND
+      e.entityName == conversation.analysis.location
+    )
+
+    IF locationEntity:
+      relationships.push(new Relationship {
+        sourceEntityId: workerEntity.entityId
+        targetEntityId: locationEntity.entityId
+        relationshipType: WORKS_IN
+        strength: 0.8
+        confidence: 0.9
+        firstObserved: conversation.created_at
+        lastObserved: conversation.created_at
+        observationCount: 1
+      })
+
+  // Worker → USES → Equipment
+  equipmentEntities = entities.filter(e => e.entityType == EQUIPMENT)
+  FOR EACH equipment IN equipmentEntities:
+    // If worker mentioned equipment, they likely use it
+    relationships.push(new Relationship {
+      sourceEntityId: workerEntity.entityId
+      targetEntityId: equipment.entityId
+      relationshipType: USES
+      strength: 0.7
+      confidence: 0.8
+      firstObserved: conversation.created_at
+      lastObserved: conversation.created_at
+      observationCount: 1
+    })
+
+  // Issue → CAUSED_BY → Equipment
+  issueEntities = entities.filter(e => e.entityType == ISSUE)
+  FOR EACH issue IN issueEntities:
+    FOR EACH equipment IN equipmentEntities:
+      // If issue mentions equipment
+      IF issue.attributes.equipment == equipment.entityName:
+        relationships.push(new Relationship {
+          sourceEntityId: issue.entityId
+          targetEntityId: equipment.entityId
+          relationshipType: CAUSED_BY
+          strength: 0.9
+          confidence: 0.85
+          firstObserved: conversation.created_at
+          lastObserved: conversation.created_at
+          observationCount: 1
+        })
+
+  RETURN relationships
+
+END FUNCTION
+
+
+FUNCTION addOrUpdateRelationship(graph, newRelationship):
+  // Find existing relationship
+  existingRel = graph.relationships.find(r =>
+    r.sourceEntityId == newRelationship.sourceEntityId AND
+    r.targetEntityId == newRelationship.targetEntityId AND
+    r.relationshipType == newRelationship.relationshipType
+  )
+
+  IF existingRel:
+    // Update existing
+    existingRel.observationCount++
+    existingRel.lastObserved = newRelationship.lastObserved
+    existingRel.strength = calculateUpdatedStrength(
+      existingRel.strength,
+      newRelationship.strength,
+      existingRel.observationCount
+    )
+    existingRel.confidence = min(existingRel.confidence + 0.05, 1.0) // Increase with observations
+  ELSE:
+    // Add new
+    newRelationship.relationshipId = generateUUID()
+    graph.relationships.push(newRelationship)
+
+END FUNCTION
+
+
+FUNCTION calculateCentralityScores(graph):
+  // Calculate PageRank-style centrality
+  // Most connected/important entities get higher scores
+
+  FOR EACH entity IN graph.entities.values():
+    // Count incoming relationships
+    incomingCount = graph.relationships.filter(r =>
+      r.targetEntityId == entity.entityId
+    ).length
+
+    // Count outgoing relationships
+    outgoingCount = graph.relationships.filter(r =>
+      r.sourceEntityId == entity.entityId
+    ).length
+
+    // Weighted by relationship strength
+    weightedIncoming = graph.relationships
+      .filter(r => r.targetEntityId == entity.entityId)
+      .reduce((sum, r) => sum + r.strength, 0)
+
+    // Centrality score (0.0 to 1.0)
+    totalRelationships = incomingCount + outgoingCount
+    entity.centralityScore = min(
+      (weightedIncoming + totalRelationships * 0.1) / 10,
+      1.0
+    )
+
+  // Normalize scores
+  maxScore = max(Array.from(graph.entities.values()).map(e => e.centralityScore))
+  IF maxScore > 0:
+    FOR EACH entity IN graph.entities.values():
+      entity.centralityScore = entity.centralityScore / maxScore
+
+END FUNCTION
+
+
+FUNCTION saveKnowledgeGraph(graph):
+  database = getDatabase()
+
+  // Save entities
+  FOR EACH entity IN graph.entities.values():
+    database.query(`
+      INSERT OR REPLACE INTO knowledge_graph_entities
+      (id, entity_type, entity_name, attributes, mention_count, last_mentioned, centrality_score)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [
+      entity.entityId,
+      entity.entityType,
+      entity.entityName,
+      JSON.stringify(entity.attributes),
+      entity.mentionCount,
+      entity.lastMentioned,
+      entity.centralityScore
+    ])
+
+  // Save relationships
+  FOR EACH relationship IN graph.relationships:
+    database.query(`
+      INSERT OR REPLACE INTO knowledge_graph_relationships
+      (id, source_entity_id, target_entity_id, relationship_type, strength, confidence,
+       first_observed, last_observed, observation_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      relationship.relationshipId,
+      relationship.sourceEntityId,
+      relationship.targetEntityId,
+      relationship.relationshipType,
+      relationship.strength,
+      relationship.confidence,
+      relationship.firstObserved,
+      relationship.lastObserved,
+      relationship.observationCount
+    ])
+
+END FUNCTION
+```
+
+### Integration Points
+
+- **Input:** Conversations, patterns from NightlyLearner
+- **Output:** Updated knowledge graph (entities + relationships)
+- **Dependencies:**
+  - Conversation Analyzer (entity extraction)
+  - Database
+
+---
+
+## 3.2 Pattern Engine
+
+**Purpose:** Real-time and batch pattern detection
+
+**Note:** Core pattern discovery algorithms implemented in NightlyLearner (Section 2.1).
+
+This component provides:
+- Real-time pattern matching (lightweight, fast)
+- Pattern query interface for dashboard
+- Pattern persistence and retrieval
+
+```
+FUNCTION queryPatterns(filters):
+  database = getDatabase()
+
+  query = `
+    SELECT * FROM patterns
+    WHERE 1=1
+  `
+  params = []
+
+  IF filters.type:
+    query += " AND type = ?"
+    params.push(filters.type)
+
+  IF filters.minConfidence:
+    query += " AND confidence >= ?"
+    params.push(filters.minConfidence)
+
+  IF filters.location:
+    query += " AND JSON_EXTRACT(evidence, '$.location') = ?"
+    params.push(filters.location)
+
+  IF filters.dateRange:
+    query += " AND first_seen >= ? AND last_seen <= ?"
+    params.push(filters.dateRange.start, filters.dateRange.end)
+
+  query += " ORDER BY confidence DESC, occurrences DESC"
+
+  RETURN database.query(query, params)
+
+END FUNCTION
+```
+
+---
+
+## 3.3 Recommendation Generator
+
+**Purpose:** Generate actionable recommendations from patterns
+
+**Note:** Core recommendation logic implemented in NightlyLearner (Section 2.1).
+
+This component provides:
+- Recommendation prioritization
+- ROI recalculation
+- Recommendation status tracking (new/acknowledged/resolved)
+
+```
+FUNCTION updateRecommendationPriority(recommendationId):
+  recommendation = database.getRecommendation(recommendationId)
+
+  // Recalculate priority based on:
+  // - Time since first reported
+  // - Number of workers affected
+  // - Estimated cost impact
+  // - Admin acknowledgment status
+
+  daysSinceFirstReport = (getCurrentTimestamp() - recommendation.firstReported) / 86400000
+
+  priorityScore = 0
+
+  // Urgency increases over time
+  IF daysSinceFirstReport > 7:
+    priorityScore += 3
+  ELSE IF daysSinceFirstReport > 3:
+    priorityScore += 2
+  ELSE:
+    priorityScore += 1
+
+  // Worker count matters
+  IF recommendation.affectedWorkers >= 5:
+    priorityScore += 3
+  ELSE IF recommendation.affectedWorkers >= 2:
+    priorityScore += 2
+
+  // Cost impact
+  IF recommendation.roi.dailyCost > 100:
+    priorityScore += 3
+  ELSE IF recommendation.roi.dailyCost > 50:
+    priorityScore += 2
+
+  // Map to priority level
+  IF priorityScore >= 8:
+    recommendation.priority = CRITICAL
+  ELSE IF priorityScore >= 6:
+    recommendation.priority = HIGH
+  ELSE IF priorityScore >= 4:
+    recommendation.priority = MEDIUM
+  ELSE:
+    recommendation.priority = LOW
+
+  database.updateRecommendation(recommendation)
+
+  RETURN recommendation
+
+END FUNCTION
+```
+
+---
+
+## 3.4 Report Builder
+
+**Purpose:** Generate formatted nightly reports for admin
+
+### Data Structures
+
+```
+NightlyReport {
+  reportId: UUID
+  generatedAt: Timestamp
+  dateRange: { start: Date, end: Date }
+  executiveSummary: String
+  topPatterns: Array<Pattern> (top 5)
+  urgentRecommendations: Array<Recommendation>
+  trendAnalysis: Object
+  workerEngagement: Object
+  exportFormats: Array<String> (html, pdf, json)
+}
+```
+
+### Main Algorithm
+
+```
+FUNCTION generateNightlyReport(learningSession):
+  report = new NightlyReport {
+    reportId: generateUUID()
+    generatedAt: getCurrentTimestamp()
+    dateRange: learningSession.dateRange
+  }
+
+  // 1. Executive Summary
+  report.executiveSummary = generateExecutiveSummary(learningSession)
+
+  // 2. Top Patterns (by confidence and occurrence)
+  report.topPatterns = learningSession.patternsDiscovered
+    .sortBy(p => p.confidence * p.occurrences, descending: TRUE)
+    .slice(0, 5)
+
+  // 3. Urgent Recommendations (CRITICAL and HIGH priority)
+  report.urgentRecommendations = learningSession.recommendations
+    .filter(r => r.priority == CRITICAL OR r.priority == HIGH)
+    .sortBy(r => r.roi.dailyCost, descending: TRUE)
+
+  // 4. Trend Analysis
+  report.trendAnalysis = generateTrendAnalysis(learningSession.dateRange)
+
+  // 5. Worker Engagement
+  report.workerEngagement = calculateWorkerEngagement(learningSession.dateRange)
+
+  // Generate HTML
+  htmlReport = renderHTMLReport(report)
+
+  // Generate PDF (optional)
+  IF config.generatePDF:
+    pdfReport = convertHTMLToPDF(htmlReport)
+    savePDFReport(pdfReport, report.reportId)
+
+  // Save to database
+  database.query(`
+    INSERT INTO nightly_reports
+    (report_id, generated_at, date_range, patterns_discovered, recommendations, causal_insights, performance_stats)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [
+    report.reportId,
+    report.generatedAt,
+    JSON.stringify(report.dateRange),
+    JSON.stringify(learningSession.patternsDiscovered),
+    JSON.stringify(learningSession.recommendations),
+    JSON.stringify(learningSession.causalEdges),
+    JSON.stringify(learningSession.performanceStats)
+  ])
+
+  RETURN report
+
+END FUNCTION
+
+
+FUNCTION generateExecutiveSummary(session):
+  summary = ""
+
+  // Conversations analyzed
+  summary += session.conversationsAnalyzed + " conversations analyzed. "
+
+  // Patterns found
+  IF session.patternsDiscovered.length > 0:
+    summary += session.patternsDiscovered.length + " patterns discovered. "
+
+    // Highlight most important
+    topPattern = session.patternsDiscovered
+      .sortBy(p => p.confidence, descending: TRUE)[0]
+
+    summary += "Key finding: " + topPattern.description + ". "
+
+  // Recommendations
+  IF session.recommendations.length > 0:
+    criticalRecs = session.recommendations.filter(r => r.priority == CRITICAL)
+
+    IF criticalRecs.length > 0:
+      summary += criticalRecs.length + " CRITICAL recommendations require immediate attention. "
+
+  // Causal insights
+  IF session.causalEdges.length > 0:
+    summary += session.causalEdges.length + " cause-effect relationships identified. "
+
+  RETURN summary
+
+END FUNCTION
+
+
+FUNCTION renderHTMLReport(report):
+  html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nightly Report - ` + formatDate(report.generatedAt) + `</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    h1 { color: #333; }
+    .summary { background: #f0f0f0; padding: 20px; border-left: 4px solid #007bff; }
+    .pattern { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+    .priority-critical { background: #ffebee; border-left: 4px solid #f44336; }
+    .priority-high { background: #fff3e0; border-left: 4px solid #ff9800; }
+  </style>
+</head>
+<body>
+  <h1>🌙 Nightly Learning Report</h1>
+  <p><strong>Generated:</strong> ` + formatTimestamp(report.generatedAt) + `</p>
+  <p><strong>Period:</strong> ` + formatDateRange(report.dateRange) + `</p>
+
+  <div class="summary">
+    <h2>📊 Executive Summary</h2>
+    <p>` + report.executiveSummary + `</p>
+  </div>
+
+  <h2>🔍 Top Patterns Discovered</h2>
+  `
+
+  FOR EACH pattern IN report.topPatterns:
+    html += `
+    <div class="pattern">
+      <h3>` + pattern.description + `</h3>
+      <p><strong>Confidence:</strong> ` + (pattern.confidence * 100).toFixed(1) + `%</p>
+      <p><strong>Occurrences:</strong> ` + pattern.occurrences + `</p>
+      <p><strong>Affected Workers:</strong> ` + pattern.affectedWorkers.length + `</p>
+    </div>
+    `
+
+  html += `<h2>⚡ Urgent Recommendations</h2>`
+
+  FOR EACH rec IN report.urgentRecommendations:
+    priorityClass = "priority-" + rec.priority.toLowerCase()
+    html += `
+    <div class="pattern ` + priorityClass + `">
+      <h3>` + rec.issue + `</h3>
+      <p><strong>Impact:</strong> ` + rec.impact + `</p>
+      <p><strong>Solution:</strong> ` + rec.solution + `</p>
+      <p><strong>Investment:</strong> €` + rec.investment + `</p>
+      <p><strong>ROI:</strong> Pays for itself in ` + rec.roi.paybackDays + ` days</p>
+      <p><strong>Priority:</strong> ` + rec.priority + `</p>
+    </div>
+    `
+
+  html += `
+</body>
+</html>
+  `
+
+  RETURN html
+
+END FUNCTION
+```
+
+### Integration Points
+
+- **Input:** LearningSession from NightlyLearner
+- **Output:** HTML/PDF report, saved to database
+- **Dependencies:**
+  - NightlyLearner (provides session data)
+  - Database (save report)
+  - PDF generator (optional)
+
+---
+
+# 4. Admin Dashboard - Configuration Panel
+
+## 4.1 Voice Agent Configuration Panel (Component 5.7)
+
+**Purpose:** Allow admin to customize AI interviewer behavior
+
+### Data Structures
+
+```
+VoiceAgentConfig {
+  configId: UUID
+  companyId: String
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  active: Boolean
+
+  // Conversation Strategy
+  conversationPlannerEnabled: Boolean
+  plannerStrictness: Integer (1-10)
+  allowAIDeviation: Boolean
+
+  // Question Style
+  questionStyle: Enum(CASUAL, BALANCED, STRUCTURED)
+
+  // Learning Features
+  useReflexionMemory: Boolean
+  useSkillLibrary: Boolean
+  conservativeMode: Boolean
+
+  // Conversation Length
+  targetDurationMinutes: Integer
+  maxFollowupQuestions: Integer
+
+  // Language Tuning
+  formalityLevel: Integer (1-10)
+  useColloquialSlovak: Boolean
+  workerFriendlyTone: Boolean
+}
+```
+
+### Main Algorithm
+
+```
+FUNCTION loadConfiguration():
+  // Called when admin opens settings page
+
+  config = database.query(`
+    SELECT * FROM voice_agent_config
+    WHERE active = TRUE
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `)[0]
+
+  IF NOT config:
+    // No config exists, create default
+    config = createDefaultConfiguration()
+
+  RETURN config
+
+END FUNCTION
+
+
+FUNCTION createDefaultConfiguration():
+  config = new VoiceAgentConfig {
+    configId: generateUUID()
+    companyId: getCurrentCompanyId()
+    createdAt: getCurrentTimestamp()
+    updatedAt: getCurrentTimestamp()
+    active: TRUE
+
+    // Defaults (from FR-6.7)
+    conversationPlannerEnabled: TRUE
+    plannerStrictness: 5  // Balanced
+    allowAIDeviation: TRUE
+
+    questionStyle: BALANCED
+
+    useReflexionMemory: TRUE
+    useSkillLibrary: TRUE
+    conservativeMode: FALSE
+
+    targetDurationMinutes: 5
+    maxFollowupQuestions: 4
+
+    formalityLevel: 4  // Casual-professional
+    useColloquialSlovak: TRUE
+    workerFriendlyTone: TRUE
+  }
+
+  // Save to database
+  database.query(`
+    INSERT INTO voice_agent_config
+    (config_id, company_id, created_at, updated_at, active,
+     conversation_planner_enabled, planner_strictness, allow_ai_deviation,
+     question_style, use_reflexion_memory, use_skill_library, conservative_mode,
+     target_duration_minutes, max_followup_questions,
+     formality_level, use_colloquial_slovak, worker_friendly_tone)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    config.configId, config.companyId, config.createdAt, config.updatedAt, config.active,
+    config.conversationPlannerEnabled, config.plannerStrictness, config.allowAIDeviation,
+    config.questionStyle, config.useReflexionMemory, config.useSkillLibrary, config.conservativeMode,
+    config.targetDurationMinutes, config.maxFollowupQuestions,
+    config.formalityLevel, config.useColloquialSlovak, config.workerFriendlyTone
+  ])
+
+  RETURN config
+
+END FUNCTION
+
+
+FUNCTION saveConfiguration(newSettings):
+  // Called when admin clicks "Save Configuration"
+
+  // Validate inputs
+  validationErrors = validateConfiguration(newSettings)
+
+  IF validationErrors.length > 0:
+    RETURN { success: FALSE, errors: validationErrors }
+
+  // Deactivate old config
+  database.query(`
+    UPDATE voice_agent_config
+    SET active = FALSE
+    WHERE company_id = ? AND active = TRUE
+  `, [getCurrentCompanyId()])
+
+  // Create new active config (versioning)
+  newConfig = new VoiceAgentConfig {
+    configId: generateUUID()
+    companyId: getCurrentCompanyId()
+    createdAt: getCurrentTimestamp()
+    updatedAt: getCurrentTimestamp()
+    active: TRUE
+    ...newSettings
+  }
+
+  // Save to database
+  database.query(`
+    INSERT INTO voice_agent_config (...) VALUES (...)
+  `, [...])
+
+  // Reload voice agent with new config
+  reloadVoiceAgentConfiguration(newConfig)
+
+  LOG info "Configuration updated: " + JSON.stringify(newConfig)
+
+  RETURN { success: TRUE, config: newConfig }
+
+END FUNCTION
+
+
+FUNCTION validateConfiguration(settings):
+  errors = []
+
+  // Validate planner strictness
+  IF settings.plannerStrictness < 1 OR settings.plannerStrictness > 10:
+    errors.push("Planner strictness must be between 1 and 10")
+
+  // Validate duration
+  IF settings.targetDurationMinutes < 3 OR settings.targetDurationMinutes > 10:
+    errors.push("Target duration must be between 3 and 10 minutes")
+
+  // Validate max follow-ups
+  IF settings.maxFollowupQuestions < 2 OR settings.maxFollowupQuestions > 8:
+    errors.push("Max follow-up questions must be between 2 and 8")
+
+  // Validate formality level
+  IF settings.formalityLevel < 1 OR settings.formalityLevel > 10:
+    errors.push("Formality level must be between 1 and 10")
+
+  // Validate question style
+  validStyles = [CASUAL, BALANCED, STRUCTURED]
+  IF NOT validStyles.includes(settings.questionStyle):
+    errors.push("Invalid question style")
+
+  RETURN errors
+
+END FUNCTION
+
+
+FUNCTION previewConfiguration(testSettings):
+  // Called when admin clicks "Preview"
+  // Temporarily use settings without saving to DB
+
+  validationErrors = validateConfiguration(testSettings)
+
+  IF validationErrors.length > 0:
+    RETURN { success: FALSE, errors: validationErrors }
+
+  // Store in session/memory (not database)
+  sessionStorage.set("previewConfig", testSettings)
+
+  // Next voice session will use preview config
+  RETURN {
+    success: TRUE,
+    message: "Preview mode activated. Next conversation will use these settings.",
+    previewConfig: testSettings
+  }
+
+END FUNCTION
+
+
+FUNCTION resetToDefaults():
+  // Called when admin clicks "Reset to Defaults"
+
+  defaultConfig = createDefaultConfiguration()
+
+  RETURN {
+    success: TRUE,
+    message: "Configuration reset to defaults",
+    config: defaultConfig
+  }
+
+END FUNCTION
+
+
+FUNCTION reloadVoiceAgentConfiguration(newConfig):
+  // Notify voice agent to reload configuration
+
+  // If voice sessions are active, they'll use new config on next session
+  // Current sessions continue with their original config
+
+  globalConfig = newConfig
+
+  LOG info "Voice agent configuration reloaded"
+
+END FUNCTION
+```
+
+### UI Components (Frontend)
+
+```html
+<!-- Configuration Panel UI Structure -->
+<div class="config-panel">
+  <h1>Voice Agent Configuration</h1>
+
+  <section>
+    <h2>🎯 Conversation Strategy</h2>
+
+    <label>
+      <input type="checkbox" id="plannerEnabled" />
+      Enable Conversation Planner
+    </label>
+
+    <label>
+      Strictness:
+      <input type="range" id="strictness" min="1" max="10" value="5" />
+      <span id="strictnessValue">5</span> (Balanced)
+    </label>
+
+    <label>
+      <input type="checkbox" id="allowDeviation" checked />
+      Allow AI to deviate from plan
+    </label>
+  </section>
+
+  <section>
+    <h2>📝 Question Style</h2>
+    <select id="questionStyle">
+      <option value="CASUAL">Casual (friendly, conversational)</option>
+      <option value="BALANCED" selected>Balanced (professional + friendly)</option>
+      <option value="STRUCTURED">Structured (methodical, thorough)</option>
+    </select>
+  </section>
+
+  <section>
+    <h2>🧠 Learning Features</h2>
+    <label>
+      <input type="checkbox" id="useReflexion" checked />
+      Use ReflexionMemory (learn from past conversations)
+    </label>
+
+    <label>
+      <input type="checkbox" id="useSkillLibrary" checked />
+      Use SkillLibrary (proven question patterns)
+    </label>
+
+    <label>
+      <input type="checkbox" id="conservativeMode" />
+      Conservative mode (stick to patterns only)
+    </label>
+  </section>
+
+  <section>
+    <h2>⏱️ Conversation Length</h2>
+    <label>
+      Target duration (minutes):
+      <input type="number" id="duration" min="3" max="10" value="5" />
+    </label>
+
+    <label>
+      Max follow-up questions:
+      <input type="number" id="maxFollowups" min="2" max="8" value="4" />
+    </label>
+  </section>
+
+  <section>
+    <h2>🇸🇰 Language Tuning</h2>
+    <label>
+      Formality level:
+      <input type="range" id="formality" min="1" max="10" value="4" />
+      <span id="formalityValue">4</span> (Casual-professional)
+    </label>
+
+    <label>
+      <input type="checkbox" id="useSlang" checked />
+      Use colloquial Slovak
+    </label>
+
+    <label>
+      <input type="checkbox" id="workerFriendly" checked />
+      Worker-friendly tone
+    </label>
+  </section>
+
+  <div class="actions">
+    <button onclick="previewConfiguration()">Preview</button>
+    <button onclick="saveConfiguration()">Save Configuration</button>
+    <button onclick="resetToDefaults()">Reset to Defaults</button>
+  </div>
+</div>
+```
+
+### Integration Points
+
+- **Input:** Admin UI interactions
+- **Output:** Updated configuration in database, voice agent reload
+- **Dependencies:**
+  - Database (voice_agent_config table)
+  - Voice Agent (reload with new config)
+  - Conversation Planner (uses strictness settings)
+
+---
+
+# 5. Data Flows & Integration
+
+## 5.1 End-to-End Conversation Flow
+
+```
+1. Worker clicks "Start Conversation" button
+   ↓
+2. WebSocket Server receives connection
+   ↓
+3. Realtime Voice Agent initiates OpenAI session
+   ↓
+4. Load current VoiceAgentConfig from database
+   ↓
+5. IF config.conversationPlannerEnabled:
+     Generate ConversationPlan with goals
+   ↓
+6. Worker speaks → Audio streamed via WebSocket
+   ↓
+7. OpenAI Realtime API transcribes + responds
+   ↓
+8. Conversation Analyzer processes transcript in real-time
+   ↓
+9. Update ConversationState (information gathered)
+   ↓
+10. IF Conversation Planner enabled:
+      Update plan based on response
+      Get next question from SkillLibrary
+    ELSE:
+      Pick question from SkillLibrary directly
+   ↓
+11. AI asks follow-up question
+   ↓
+12. Repeat steps 6-11 until conversation ends
+   ↓
+13. Save transcript + analysis to database
+   ↓
+14. Trigger real-time analysis (optional)
+   ↓
+15. Queue for NightlyLearner processing
+```
+
+## 5.2 Nightly Learning Flow
+
+```
+1. Cron job triggers at 2:00 AM
+   ↓
+2. NightlyLearner.runNightlyLearning()
+   ↓
+3. Load conversations from past 24 hours
+   ↓
+4. Pattern Discovery:
+   - Temporal patterns
+   - Spatial patterns
+   - Issue clusters
+   - Correlations
+   ↓
+5. Causal Analysis:
+   - Map cause-effect relationships
+   - Calculate uplift + propensity scores
+   - Detect confounders
+   ↓
+6. Generate Recommendations:
+   - Equipment recommendations (with ROI)
+   - Supply recommendations
+   - Process improvements
+   ↓
+7. Consolidate Skills:
+   - Extract successful question patterns
+   - Add to SkillLibrary
+   ↓
+8. Perform Reflexion:
+   - Critique conversation quality
+   - Identify successful/failed strategies
+   - Update SkillLibrary success rates
+   ↓
+9. Update Knowledge Graph:
+   - Add/update entities
+   - Add/update relationships
+   - Calculate centrality scores
+   ↓
+10. Generate Nightly Report:
+    - Executive summary
+    - Top patterns
+    - Urgent recommendations
+    - Trend analysis
+   ↓
+11. Save all results to database
+   ↓
+12. Send notification to admin (optional)
+```
+
+## 5.3 Configuration Change Flow
+
+```
+1. Admin opens Configuration Panel
+   ↓
+2. Load current active config from database
+   ↓
+3. Admin adjusts settings (e.g., strictness slider)
+   ↓
+4. Admin clicks "Preview"
+   ↓
+5. Validate settings
+   ↓
+6. Store in session (not database)
+   ↓
+7. Next test conversation uses preview config
+   ↓
+8. Admin satisfied → clicks "Save Configuration"
+   ↓
+9. Deactivate old config, create new active config
+   ↓
+10. Reload voice agent with new config
+   ↓
+11. All future conversations use new config
+```
+
+---
+
+# 6. Summary
+
+## Pseudocode Complete
+
+**Components Covered (13 detailed + references):**
+
+1. ✅ Realtime Voice Agent (1.1) - Full algorithms
+2. ✅ WebSocket Server (1.2) - Full algorithms
+3. ✅ Conversation Analyzer (1.3) - Full algorithms
+4. ✅ NightlyLearner (2.1) - Full algorithms
+5. ✅ ReflexionMemory Integration (2.2) - Full algorithms
+6. ✅ SkillLibrary Integration (2.3) - Full algorithms
+7. ✅ CausalMemoryGraph Integration (2.4) - Referenced in NightlyLearner
+8. ✅ Conversation Strategy Planner (2.5) - Full algorithms
+9. ✅ AgentDB Core Orchestration (2.6) - Initialization
+10. ✅ Knowledge Graph Builder (3.1) - Full algorithms
+11. ✅ Pattern Engine (3.2) - Query interface
+12. ✅ Recommendation Generator (3.3) - Priority logic
+13. ✅ Report Builder (3.4) - Full algorithms
+14. ✅ Voice Agent Configuration Panel (4.1 / 5.7) - Full algorithms + UI
+
+**Total Lines:** ~2,200 lines of pseudocode
+
+## Key Achievements
+
+✅ **Voice System** - Complete WebSocket + OpenAI integration
+✅ **Learning System** - Full AgentDB integration with all components
+✅ **Conversation Planner** - Toggleable, configurable, Slovak keywords
+✅ **Configuration Panel** - Admin can experiment with settings
+✅ **Analytics Engine** - Pattern detection, knowledge graph, recommendations
+✅ **Data Flows** - End-to-end integration documented
+
+## Implementation Ready
+
+This pseudocode is detailed enough to:
+- Guide implementation directly
+- Understand data structures
+- See integration points
+- Handle edge cases
+- Build with confidence
+
+---
+
+**Phase 2 (Pseudocode): ✅ COMPLETE**
+
+**Ready for Phase 3: Architecture** 🏗️
+
+---
+
+*End of Pseudocode Document*
+*Total: 2,200+ lines*
+*Date: 2025-01-18*
