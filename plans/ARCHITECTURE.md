@@ -1,9 +1,9 @@
 # 🏗️ ImpofAI - System Architecture
 
 **SPARC Phase 3: Architecture**
-**Version:** 1.0
+**Version:** 1.1
 **Date:** 2025-01-18
-**Status:** 🏗️ In Progress
+**Status:** ✅ Complete (Reviewed & Refined)
 
 ---
 
@@ -17,8 +17,9 @@
 6. [Component Architecture](#component-architecture)
 7. [Deployment Architecture](#deployment-architecture)
 8. [Security Architecture](#security-architecture)
-9. [Integration Guide](#integration-guide)
-10. [Scaling Strategy](#scaling-strategy)
+9. [Database Backup & Recovery](#database-backup--recovery)
+10. [Integration Guide](#integration-guide)
+11. [Scaling Strategy](#scaling-strategy)
 
 ---
 
@@ -207,7 +208,14 @@ ImpofAI is a **business intelligence platform** that uses AI voice conversations
     "midstream": "latest",
     "express": "^4.18.2",
     "ws": "^8.14.2",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "zod": "^3.22.4",
+    "dompurify": "^3.0.8",
+    "isomorphic-dompurify": "^2.9.0",
+    "csurf": "^1.11.0",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "bcrypt": "^5.1.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
@@ -279,6 +287,8 @@ CREATE INDEX idx_conversations_date ON conversations(started_at);
 CREATE INDEX idx_conversations_sentiment ON conversations(sentiment);
 CREATE INDEX idx_conversations_urgency ON conversations(urgency);
 CREATE INDEX idx_conversations_processed ON conversations(processed_by_nightly);
+CREATE INDEX idx_conversations_location ON conversations(location);
+-- Note: For JSON array searches (topics, issues), use JSON_EXTRACT in queries with function-based indexes
 ```
 
 #### **workers**
@@ -534,12 +544,42 @@ Content-Type: application/json
   "workerPhone": "+421901234567"
 }
 
-Response 200:
+Response 200 (Success):
 {
   "sessionId": "uuid-v4",
   "conversationId": "uuid-v4",
   "status": "connected",
   "websocketUrl": "wss://impofai.yourdomain.com/voice/session-id"
+}
+
+Response 400 (Bad Request):
+{
+  "error": "Invalid request",
+  "message": "workerId is required",
+  "code": "VALIDATION_ERROR"
+}
+
+Response 401 (Unauthorized):
+{
+  "error": "Unauthorized",
+  "message": "Invalid or missing API key",
+  "code": "AUTH_ERROR"
+}
+
+Response 429 (Rate Limit):
+{
+  "error": "Rate limit exceeded",
+  "message": "Maximum 10 requests per minute",
+  "retryAfter": 45,
+  "code": "RATE_LIMIT_ERROR"
+}
+
+Response 500 (Server Error):
+{
+  "error": "Internal server error",
+  "message": "Failed to initialize voice session",
+  "code": "INTERNAL_ERROR",
+  "requestId": "req_abc123"
 }
 ```
 
@@ -923,19 +963,37 @@ echo "🚀 Deploying ImpofAI..."
 # Pull latest code
 git pull origin main
 
+# Build MidStream (Rust components)
+echo "📦 Building MidStream..."
+if [ -d "midstream" ]; then
+  cd midstream
+  cargo build --release
+  npm install
+  npm run build
+  cd ..
+else
+  echo "⚠️  Warning: MidStream directory not found, skipping build"
+fi
+
 # Install dependencies
+echo "📦 Installing dependencies..."
 npm install --production
 
 # Run database migrations (if any)
+echo "🗄️  Running database migrations..."
 npm run migrate
 
 # Restart PM2
+echo "🔄 Restarting application..."
 pm2 restart ecosystem.config.js
 
 # Reload Nginx
+echo "🌐 Reloading Nginx..."
 sudo systemctl reload nginx
 
 echo "✅ Deployment complete!"
+echo "📊 Check status: pm2 status"
+echo "📋 View logs: pm2 logs impofai"
 ```
 
 ---
@@ -999,11 +1057,216 @@ const apiKey = `ifa_${crypto.randomBytes(32).toString('hex')}`;
 const hash = await bcrypt.hash(apiKey, 10);
 ```
 
+### 8.4 Input Validation & Sanitization
+
+**Request Validation Schema (using Zod):**
+
+```javascript
+import { z } from 'zod';
+
+// Conversation start validation
+const startConversationSchema = z.object({
+  workerId: z.string().min(1).max(100).regex(/^[A-Z0-9-]+$/),
+  workerPhone: z.string().regex(/^\+421[0-9]{9}$/),
+  metadata: z.record(z.string()).optional()
+});
+
+// Validate requests
+app.post('/api/v1/conversations/start', async (req, res) => {
+  try {
+    const validated = startConversationSchema.parse(req.body);
+    // Proceed with validated data
+  } catch (error) {
+    return res.status(400).json({
+      error: 'Validation error',
+      details: error.errors
+    });
+  }
+});
+```
+
+**SQL Injection Prevention:**
+```javascript
+// ALWAYS use prepared statements
+const stmt = db.prepare('SELECT * FROM conversations WHERE worker_id = ?');
+const results = stmt.all(workerId); // Safe
+
+// NEVER use string concatenation
+// const query = `SELECT * FROM conversations WHERE worker_id = '${workerId}'`; // UNSAFE!
+```
+
+**XSS Protection (Dashboard):**
+```javascript
+// Sanitize HTML before rendering
+import DOMPurify from 'dompurify';
+
+function renderTranscript(text) {
+  return DOMPurify.sanitize(text, { ALLOWED_TAGS: [] }); // Strip all HTML
+}
+```
+
+**CSRF Protection:**
+```javascript
+import csrf from 'csurf';
+
+const csrfProtection = csrf({ cookie: true });
+
+// Protect state-changing operations
+app.post('/api/v1/config/voice-agent', csrfProtection, async (req, res) => {
+  // Handle config update
+});
+```
+
 ---
 
-## 9. Integration Guide
+## 9. Database Backup & Recovery
 
-### 9.1 MidStream Installation
+### 9.1 Backup Strategy
+
+**Automated Daily Backups:**
+
+```bash
+#!/bin/bash
+# /scripts/backup-database.sh
+
+set -e
+
+BACKUP_DIR="/var/backups/impofai"
+DB_PATH="/var/www/impofai/data/agentdb.sqlite"
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/agentdb_backup_$DATE.sqlite"
+
+# Create backup directory
+mkdir -p $BACKUP_DIR
+
+# SQLite online backup (safe during operation)
+sqlite3 $DB_PATH ".backup $BACKUP_FILE"
+
+# Compress backup
+gzip $BACKUP_FILE
+
+# Verify backup integrity
+gunzip -t "$BACKUP_FILE.gz"
+
+# Delete backups older than 30 days
+find $BACKUP_DIR -name "agentdb_backup_*.sqlite.gz" -mtime +30 -delete
+
+echo "✅ Backup completed: $BACKUP_FILE.gz"
+```
+
+**Cron Schedule:**
+```bash
+# Edit crontab: crontab -e
+# Daily backup at 3:00 AM (after nightly learning at 2:00 AM)
+0 3 * * * /var/www/impofai/scripts/backup-database.sh >> /var/log/impofai/backup.log 2>&1
+```
+
+### 9.2 Point-in-Time Recovery
+
+**WAL Mode (Write-Ahead Logging):**
+
+```javascript
+// Enable WAL mode for better concurrency and crash recovery
+db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('wal_autocheckpoint = 1000');
+```
+
+**Benefits:**
+- Allows reads while writing
+- Better crash recovery
+- Automatic checkpointing
+
+### 9.3 Disaster Recovery Procedure
+
+**1. Restore from Backup:**
+```bash
+#!/bin/bash
+# /scripts/restore-database.sh
+
+BACKUP_FILE=$1
+DB_PATH="/var/www/impofai/data/agentdb.sqlite"
+
+if [ -z "$BACKUP_FILE" ]; then
+  echo "Usage: ./restore-database.sh <backup_file.gz>"
+  exit 1
+fi
+
+# Stop application
+pm2 stop impofai
+
+# Backup current database (just in case)
+cp $DB_PATH "${DB_PATH}.before-restore"
+
+# Restore from backup
+gunzip -c $BACKUP_FILE > $DB_PATH
+
+# Verify restored database
+sqlite3 $DB_PATH "PRAGMA integrity_check;"
+
+# Restart application
+pm2 start impofai
+
+echo "✅ Database restored from $BACKUP_FILE"
+```
+
+**2. Verify Data Integrity:**
+```sql
+-- Check database integrity
+PRAGMA integrity_check;
+
+-- Check foreign key consistency
+PRAGMA foreign_key_check;
+
+-- Verify conversation count
+SELECT COUNT(*) FROM conversations;
+```
+
+### 9.4 Backup Retention Policy
+
+- **Daily backups:** Keep for 30 days
+- **Weekly backups:** Keep for 90 days (every Sunday)
+- **Monthly backups:** Keep for 1 year (first of each month)
+
+**Implementation:**
+```bash
+# Weekly backup (Sundays)
+0 3 * * 0 cp /var/backups/impofai/agentdb_backup_$(date +\%Y\%m\%d_\%H\%M\%S).sqlite.gz /var/backups/impofai/weekly/
+
+# Monthly backup (1st of month)
+0 3 1 * * cp /var/backups/impofai/agentdb_backup_$(date +\%Y\%m\%d_\%H\%M\%S).sqlite.gz /var/backups/impofai/monthly/
+```
+
+### 9.5 Off-Site Backup (Production)
+
+**Sync to Hetzner Storage Box:**
+```bash
+# /scripts/sync-to-remote.sh
+
+STORAGE_BOX="u123456@u123456.your-storagebox.de"
+LOCAL_BACKUP="/var/backups/impofai"
+REMOTE_BACKUP="/impofai-backups"
+
+# Sync via rsync over SSH
+rsync -avz --delete \
+  -e "ssh -p 23" \
+  $LOCAL_BACKUP/ \
+  $STORAGE_BOX:$REMOTE_BACKUP/
+
+echo "✅ Backups synced to off-site storage"
+```
+
+**Cron Schedule:**
+```bash
+# Daily off-site sync at 4:00 AM (after local backup)
+0 4 * * * /var/www/impofai/scripts/sync-to-remote.sh >> /var/log/impofai/sync.log 2>&1
+```
+
+---
+
+## 10. Integration Guide
+
+### 10.1 MidStream Installation
 
 **Prerequisites:**
 - Rust 1.70+ installed
@@ -1046,7 +1309,7 @@ const analysis = await analyzer.analyzeTurn(
 );
 ```
 
-### 9.2 AgentDB Initialization
+### 10.2 AgentDB Initialization
 
 **File:** `/src/database/initAgentDB.js`
 
@@ -1096,7 +1359,7 @@ async function createCustomTables(db) {
 export { initializeAgentDB };
 ```
 
-### 9.3 OpenAI Realtime API Integration
+### 10.3 OpenAI Realtime API Integration
 
 **File:** `/src/voice/OpenAIRealtimeClient.js`
 
@@ -1107,9 +1370,14 @@ class OpenAIRealtimeClient {
   constructor(apiKey) {
     this.apiKey = apiKey;
     this.ws = null;
+    this.sessionConfig = null;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+    this.reconnectDelay = 2000; // Start with 2 seconds
   }
 
   async connect(sessionConfig) {
+    this.sessionConfig = sessionConfig;
     const url = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01';
 
     this.ws = new WebSocket(url, {
@@ -1120,6 +1388,10 @@ class OpenAIRealtimeClient {
     });
 
     this.ws.on('open', () => {
+      console.log('✅ Connected to OpenAI Realtime API');
+      this.reconnectAttempts = 0;
+      this.reconnectDelay = 2000;
+
       // Configure session
       this.send({
         type: 'session.update',
@@ -1144,7 +1416,34 @@ class OpenAIRealtimeClient {
     });
 
     this.ws.on('message', (data) => {
-      this.handleMessage(JSON.parse(data));
+      try {
+        this.handleMessage(JSON.parse(data));
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    });
+
+    this.ws.on('error', (error) => {
+      console.error('❌ WebSocket error:', error.message);
+      // Error will trigger 'close' event, handled below
+    });
+
+    this.ws.on('close', (code, reason) => {
+      console.warn(`⚠️  WebSocket closed (code: ${code}, reason: ${reason})`);
+
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.reconnectAttempts++;
+        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
+
+        console.log(`🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+
+        setTimeout(() => {
+          this.connect(this.sessionConfig);
+        }, delay);
+      } else {
+        console.error('❌ Max reconnection attempts reached. Giving up.');
+        this.onConnectionFailed && this.onConnectionFailed();
+      }
     });
   }
 
@@ -1187,16 +1486,16 @@ export { OpenAIRealtimeClient };
 
 ---
 
-## 10. Scaling Strategy
+## 11. Scaling Strategy
 
-### 10.1 Current Capacity (CX21)
+### 11.1 Current Capacity (CX21)
 
 **Estimated Capacity:**
 - Concurrent voice sessions: 10-15
 - Daily conversations: 500-1,000
 - Database size: 100 GB (sufficient for 1+ year)
 
-### 10.2 Scaling Plan
+### 11.2 Scaling Plan
 
 **Phase 1: Vertical Scaling (0-1,000 daily calls)**
 - Upgrade to CX31 (2 vCPU, 8 GB RAM)
@@ -1217,7 +1516,7 @@ export { OpenAIRealtimeClient };
 - CDN for dashboard
 - Cost: ~€200-500/month
 
-### 10.3 Performance Optimization
+### 11.3 Performance Optimization
 
 1. **Database Indexing:** All foreign keys + frequently queried columns
 2. **Caching:** Redis for frequent queries (patterns, recommendations)
@@ -1232,17 +1531,19 @@ export { OpenAIRealtimeClient };
 - [x] System overview and high-level architecture
 - [x] Component interaction diagrams
 - [x] Technology stack specification
-- [x] Complete database schema with indexes
-- [x] RESTful API endpoints
-- [x] WebSocket API specification
+- [x] Complete database schema with indexes (including location index)
+- [x] RESTful API endpoints with error response schemas
+- [x] WebSocket API specification with error handling
 - [x] Component architecture and class design
 - [x] Deployment architecture (Hetzner VPS)
 - [x] Nginx reverse proxy configuration
 - [x] PM2 process management
 - [x] Security architecture (HTTPS, API keys, rate limiting)
-- [x] MidStream integration guide
+- [x] Input validation & sanitization (Zod, SQL injection prevention, XSS, CSRF)
+- [x] Database backup & recovery strategy
+- [x] MidStream integration guide (with build script)
 - [x] AgentDB initialization
-- [x] OpenAI Realtime API integration
+- [x] OpenAI Realtime API integration (with reconnection logic)
 - [x] Scaling strategy
 
 ---
