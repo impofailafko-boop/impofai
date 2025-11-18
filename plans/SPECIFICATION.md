@@ -247,7 +247,9 @@ Uses goal-oriented planning to conduct smarter interviews:
 - **Completeness Check:** Validate all required info collected before ending conversation
 - **Integration:** Works WITH SkillLibrary (provides questions) and ReflexionMemory (learns what works)
 - **Natural Feel:** Planner suggests questions, but AI can deviate to keep conversation natural
-- **Configurable:** Can be tuned from "strict" (follow plan) to "loose" (suggestions only)
+- **Configurable via FR-6.7:** Admin can toggle ON/OFF, adjust strictness (1-10), and test different strategies
+- **Default State:** ON with medium strictness (5/10) for balanced natural + complete conversations
+- **Risk Mitigation:** If planner makes conversations feel robotic, admin can disable it instantly
 
 **FR-4.3: Nightly Learning Cycle**
 - Every night (or configurable schedule):
@@ -373,6 +375,57 @@ Real-time notifications for:
 - Multiple workers report same issue same day
 - Safety concerns mentioned
 - Employee dissatisfaction threshold exceeded
+
+**FR-6.7: Voice Agent Configuration Panel**
+Admin can customize AI interviewer behavior through settings panel:
+
+**Configurable Features:**
+- **Conversation Strategy:**
+  - Conversation Planner: ON/OFF toggle
+  - Strictness slider: 1 (loose, natural) to 10 (strict, methodical)
+  - Allow AI to deviate from plan: YES/NO
+- **Question Style:**
+  - Casual (friendly, conversational)
+  - Balanced (mix of casual + focused) [DEFAULT]
+  - Structured (methodical, thorough)
+- **Learning Features:**
+  - Use ReflexionMemory: ON/OFF
+  - Use SkillLibrary: ON/OFF
+  - Conservative mode (stick to proven patterns only): ON/OFF
+- **Conversation Length:**
+  - Target duration: 3-10 minutes (default: 5)
+  - Max follow-up questions: 2-8 (default: 4)
+- **Language Tuning:**
+  - Formality level: 1 (very casual) to 10 (formal) (default: 4)
+  - Use colloquial Slovak: YES/NO
+  - Worker-friendly tone: ON/OFF
+
+**Benefits:**
+- Experimentation: Test different strategies, measure results
+- Customization: Each company gets optimal settings for their culture
+- Risk mitigation: Disable features that don't work
+- A/B Testing: Compare planner ON vs OFF, measure data quality
+- Future-proof: Easy to add new experimental features
+
+**UI Implementation:**
+- Location: Admin Dashboard → Settings → Voice Agent Config
+- Persistence: Settings saved to database
+- Preview mode: Admin can test settings before applying
+- Reset to defaults: Single-click restore recommended settings
+- Per-company configuration (multi-tenant ready)
+
+**Default Configuration:**
+```
+conversationPlanner: ON
+plannerStrictness: 5 (balanced)
+questionStyle: "balanced"
+useReflexion: ON
+useSkillLibrary: ON
+targetDuration: 5
+maxFollowUps: 4
+formalityLevel: 4
+useSlang: YES
+```
 
 ### 3.7 Admin AI Assistant
 
@@ -782,6 +835,22 @@ Admin can ask AI questions:
     - report_id, generated_at, date_range
     - patterns_discovered (JSON), recommendations (JSON)
     - causal_insights (JSON), performance_stats (JSON)
+
+11. **voice_agent_config** (FR-6.7: Configuration Panel)
+    - config_id (PK), company_id, created_at, updated_at
+    - conversation_planner_enabled (BOOLEAN, default: TRUE)
+    - planner_strictness (INTEGER 1-10, default: 5)
+    - allow_ai_deviation (BOOLEAN, default: TRUE)
+    - question_style (TEXT: 'casual'|'balanced'|'structured', default: 'balanced')
+    - use_reflexion_memory (BOOLEAN, default: TRUE)
+    - use_skill_library (BOOLEAN, default: TRUE)
+    - conservative_mode (BOOLEAN, default: FALSE)
+    - target_duration_minutes (INTEGER, default: 5)
+    - max_followup_questions (INTEGER, default: 4)
+    - formality_level (INTEGER 1-10, default: 4)
+    - use_colloquial_slovak (BOOLEAN, default: TRUE)
+    - worker_friendly_tone (BOOLEAN, default: TRUE)
+    - active (BOOLEAN, default: TRUE) -- allows config versioning
 
 ### 6.3 File Structure (To Be Built)
 

@@ -11,10 +11,10 @@ Complete inventory of all system components for the Business Intelligence Platfo
 | **Voice System** | 3 components | 📋 Specified |
 | **Learning System** | 6 components | 📋 Specified |
 | **Analytics Engine** | 4 components | 📋 Specified |
-| **Admin Dashboard** | 6 components | 📋 Specified |
+| **Admin Dashboard** | 7 components | 📋 Specified |
 | **Infrastructure** | 4 components | 📋 Specified |
 | **Utilities** | 3 components | 📋 Specified |
-| **TOTAL** | **26 components** | **Phase 1/5** |
+| **TOTAL** | **27 components** | **Phase 1/5** |
 
 ---
 
@@ -300,6 +300,26 @@ Complete inventory of all system components for the Business Intelligence Platfo
   - Follow-up suggestions
 - **Status:** 📋 Specified
 - **File:** `/src/dashboard/public/ai-assistant.html` (to be built)
+
+### 5.7 Voice Agent Configuration Panel
+- **Purpose:** Customize AI interviewer behavior for experimentation and optimization
+- **Technology:** HTML form + database persistence
+- **Features:**
+  - Toggle Conversation Planner ON/OFF
+  - Strictness slider (1-10) for planning behavior
+  - Question style selection (casual/balanced/structured)
+  - Learning features toggles (ReflexionMemory, SkillLibrary)
+  - Conversation length settings (duration, max follow-ups)
+  - Language tuning (formality level, colloquial Slovak)
+  - Preview mode (test settings before applying)
+  - Reset to defaults
+  - Configuration versioning
+  - A/B testing support (compare different configs)
+- **Status:** 📋 Specified (new)
+- **File:** `/src/dashboard/public/settings.html` (to be built)
+- **API:** `/src/dashboard/routes/config.js` (to be built)
+- **Database:** `voice_agent_config` table
+- **Priority:** Medium (enables experimentation, risk mitigation)
 
 ---
 
