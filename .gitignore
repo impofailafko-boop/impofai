@@ -1,27 +1,20 @@
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Test databases
-*.db
-*.db-shm
-*.db-wal
-simple-test.db
-test-memory.db
-voice-memory.db
-
-# Environment
+# Environment variables
 .env
-.env.local
-.env.production.local
+
+# Database
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 # Logs
 logs/
 *.log
 
-# OS
+# Dependencies
+node_modules/
+
+# OS files
 .DS_Store
 Thumbs.db
 
@@ -38,3 +31,4 @@ build/
 # Temporary files
 tmp/
 temp/
+*.db
