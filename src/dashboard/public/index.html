@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImpofAI - Admin Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .stat-card h3 {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card .value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .section h2 {
+            margin-bottom: 1.5rem;
+            color: #2c3e50;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+
+        .pattern-list, .recommendation-list {
+            list-style: none;
+        }
+
+        .pattern-item, .recommendation-item {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .pattern-item:hover, .recommendation-item:hover {
+            background: #e9ecef;
+        }
+
+        .pattern-item h4, .recommendation-item h4 {
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+
+        .pattern-meta, .recommendation-meta {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-top: 0.5rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-critical { background: #e74c3c; color: white; }
+        .badge-high { background: #e67e22; color: white; }
+        .badge-medium { background: #f39c12; color: white; }
+        .badge-low { background: #95a5a6; color: white; }
+
+        .badge-immediate { background: #e74c3c; color: white; }
+        .badge-this-week { background: #e67e22; color: white; }
+        .badge-this-month { background: #3498db; color: white; }
+
+        .roi-highlight {
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #95a5a6;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+            margin-bottom: 1rem;
+        }
+
+        .refresh-btn:hover {
+            background: #5568d3;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #7f8c8d;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎯 ImpofAI Dashboard</h1>
+        <p>Business Intelligence Through Conversational AI</p>
+    </div>
+
+    <div class="container">
+        <button class="refresh-btn" onclick="loadDashboard()">🔄 Obnoviť údaje</button>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Celkový počet konverzácií</h3>
+                <div class="value" id="totalConversations">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Aktívnych pracovníkov</h3>
+                <div class="value" id="totalWorkers">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Detekované vzory</h3>
+                <div class="value" id="totalPatterns">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Odporúčania</h3>
+                <div class="value" id="totalRecommendations">-</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔍 Detekované vzory (problémy)</h2>
+            <div id="patternsContent">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Načítavam vzory...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>💡 Odporúčania s ROI kalkuláciou</h2>
+            <div id="recommendationsContent">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Načítavam odporúčania...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api/v1';
+
+        async function loadDashboard() {
+            try {
+                // Load stats
+                await loadStats();
+
+                // Load patterns
+                await loadPatterns();
+
+                // Load recommendations
+                await loadRecommendations();
+
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                alert('Chyba pri načítaní údajov. Skontrolujte, či server beží.');
+            }
+        }
+
+        async function loadStats() {
+            // Get total conversations
+            const convResponse = await fetch(`${API_BASE}/stats/conversations`);
+            if (convResponse.ok) {
+                const data = await convResponse.json();
+                document.getElementById('totalConversations').textContent = data.total || 0;
+            }
+
+            // Get workers
+            const workersResponse = await fetch(`${API_BASE}/workers`);
+            if (workersResponse.ok) {
+                const data = await workersResponse.json();
+                document.getElementById('totalWorkers').textContent = data.total || 0;
+            }
+
+            // Get patterns
+            const patternsResponse = await fetch(`${API_BASE}/patterns`);
+            if (patternsResponse.ok) {
+                const data = await patternsResponse.json();
+                document.getElementById('totalPatterns').textContent = data.total || 0;
+            }
+
+            // Get recommendations
+            const recsResponse = await fetch(`${API_BASE}/recommendations`);
+            if (recsResponse.ok) {
+                const data = await recsResponse.json();
+                document.getElementById('totalRecommendations').textContent = data.total || 0;
+            }
+        }
+
+        async function loadPatterns() {
+            const response = await fetch(`${API_BASE}/patterns`);
+            const data = await response.json();
+
+            const container = document.getElementById('patternsContent');
+
+            if (!data.patterns || data.patterns.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>Zatiaľ neboli detekované žiadne vzory.</p>
+                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Vzory sa vytvoria po spracovaní viacerých konverzácií.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = `
+                <ul class="pattern-list">
+                    ${data.patterns.map(pattern => `
+                        <li class="pattern-item">
+                            <h4>${pattern.issue_description}</h4>
+                            <p><strong>Lokácia:</strong> ${pattern.location || 'Neuvedené'}</p>
+                            <div class="pattern-meta">
+                                <span><strong>${pattern.occurrence_count}×</strong> výskytov</span>
+                                <span><strong>${JSON.parse(pattern.affected_workers || '[]').length}</strong> pracovníkov</span>
+                                <span class="badge badge-${pattern.urgency_level}">${pattern.urgency_level}</span>
+                                <span class="roi-highlight">Náklady: €${pattern.estimated_daily_cost.toFixed(2)}/deň</span>
+                            </div>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        async function loadRecommendations() {
+            const response = await fetch(`${API_BASE}/recommendations`);
+            const data = await response.json();
+
+            const container = document.getElementById('recommendationsContent');
+
+            if (!data.recommendations || data.recommendations.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>Zatiaľ neboli vygenerované žiadne odporúčania.</p>
+                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Spustite analýzu na vytvorenie odporúčaní.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = `
+                <ul class="recommendation-list">
+                    ${data.recommendations.map(rec => `
+                        <li class="recommendation-item">
+                            <h4>Priority ${rec.priority}: ${rec.title}</h4>
+                            <p>${rec.description}</p>
+                            <p><strong>Odporúčaná akcia:</strong> ${rec.recommended_action}</p>
+                            <div class="recommendation-meta">
+                                <span class="badge badge-${rec.urgency}">${rec.urgency}</span>
+                                <span><strong>Investícia:</strong> €${rec.investment_required}</span>
+                                <span class="roi-highlight"><strong>ROI:</strong> ${rec.annual_roi_percentage.toFixed(0)}%</span>
+                                <span><strong>Návratnosť:</strong> ${rec.payback_period_days} dní</span>
+                                <span><strong>Úspora:</strong> €${rec.estimated_savings_per_day.toFixed(2)}/deň</span>
+                            </div>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // Load dashboard on page load
+        loadDashboard();
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadDashboard, 30000);
+    </script>
+</body>
+</html>

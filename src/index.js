@@ -10,19 +10,24 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { initializeAgentDB } from './database/initAgentDB.js';
 import { ConversationManager } from './voice/ConversationManager.js';
 import { OpenAIRealtimeClient } from './voice/OpenAIRealtimeClient.js';
+import { PatternEngine } from './analytics/PatternEngine.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Global state
 let db = null;
 let conversationManager = null;
+let patternEngine = null;
 
 /**
  * Initialize application
@@ -36,6 +41,9 @@ async function initialize() {
 
   // Initialize conversation manager
   conversationManager = new ConversationManager(db);
+
+  // Initialize pattern engine
+  patternEngine = new PatternEngine(db);
 
   console.log('\n✅ ImpofAI initialized successfully!\n');
 }
@@ -254,6 +262,122 @@ app.post('/api/v1/conversations/:id/transcript', async (req, res) => {
       message: error.message
     });
   }
+});
+
+/**
+ * POST /api/v1/analytics/detect-patterns
+ * Run pattern detection
+ */
+app.post('/api/v1/analytics/detect-patterns', async (req, res) => {
+  try {
+    const patterns = await patternEngine.detectPatterns();
+
+    res.json({
+      message: 'Pattern detection completed',
+      patterns,
+      total: patterns.length
+    });
+  } catch (error) {
+    console.error('Error detecting patterns:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to detect patterns'
+    });
+  }
+});
+
+/**
+ * POST /api/v1/analytics/generate-recommendations
+ * Generate recommendations from patterns
+ */
+app.post('/api/v1/analytics/generate-recommendations', async (req, res) => {
+  try {
+    const recommendations = await patternEngine.generateRecommendations();
+
+    res.json({
+      message: 'Recommendations generated',
+      recommendations,
+      total: recommendations.length
+    });
+  } catch (error) {
+    console.error('Error generating recommendations:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to generate recommendations'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/patterns
+ * Get all patterns
+ */
+app.get('/api/v1/patterns', (req, res) => {
+  try {
+    const patterns = patternEngine.getActivePatterns();
+
+    res.json({
+      patterns,
+      total: patterns.length
+    });
+  } catch (error) {
+    console.error('Error getting patterns:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get patterns'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/recommendations
+ * Get all recommendations
+ */
+app.get('/api/v1/recommendations', (req, res) => {
+  try {
+    const { status } = req.query;
+    const recommendations = patternEngine.getRecommendations(status);
+
+    res.json({
+      recommendations,
+      total: recommendations.length
+    });
+  } catch (error) {
+    console.error('Error getting recommendations:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get recommendations'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/stats/conversations
+ * Get conversation statistics
+ */
+app.get('/api/v1/stats/conversations', (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT COUNT(*) as total FROM conversations');
+    const result = stmt.get();
+
+    res.json({
+      total: result.total
+    });
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get statistics'
+    });
+  }
+});
+
+// Serve dashboard static files
+app.use(express.static(path.join(__dirname, 'dashboard/public')));
+
+// Serve dashboard at root
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard/public/index.html'));
 });
 
 // 404 handler
