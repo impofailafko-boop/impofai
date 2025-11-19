@@ -5,6 +5,8 @@
  * to use during conversations.
  */
 
+import { buildSlovakPrompt, buildSlovakFirstMessage } from '../utils/dynamicVariables.js';
+
 /**
  * Get context about a worker
  * @param {Database} db - SQLite database instance
@@ -20,10 +22,13 @@ export async function getWorkerContext(db, workerId) {
 
     // If worker doesn't exist, return basic context
     if (!worker) {
+      const newWorkerContext = { is_new_worker: true };
       return {
         is_new_worker: true,
         message: 'New worker - no previous context available',
-        suggested_greeting: 'Ahoj! Vitajte v ImpofAI. Som váš AI asistent. Ako sa máte dnes?'
+        suggested_greeting: 'Ahoj! Vitajte v ImpofAI. Som váš AI asistent. Ako sa máte dnes?',
+        dynamic_prompt: buildSlovakPrompt(newWorkerContext),
+        dynamic_first_message: buildSlovakFirstMessage(newWorkerContext)
       };
     }
 
@@ -82,8 +87,27 @@ export async function getWorkerContext(db, workerId) {
         location: pattern.location,
         urgency: pattern.urgency_level
       })),
-      conversation_tips: generateConversationTips(worker, recentConversations, activePatterns)
+      conversation_tips: generateConversationTips(worker, recentConversations, activePatterns),
+      is_new_worker: false
     };
+
+    // Add dynamic variables for ElevenLabs
+    const contextForDynamic = {
+      worker: {
+        name: worker.name,
+        role: worker.role
+      },
+      active_issues: activePatterns.map(pattern => ({
+        description: pattern.issue_description
+      })),
+      recent_conversations: recentConversations.map(conv => ({
+        topics: conv.topics ? JSON.parse(conv.topics) : []
+      })),
+      is_new_worker: false
+    };
+
+    context.dynamic_prompt = buildSlovakPrompt(contextForDynamic);
+    context.dynamic_first_message = buildSlovakFirstMessage(contextForDynamic);
 
     return context;
 
