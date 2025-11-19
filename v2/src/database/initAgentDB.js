@@ -164,6 +164,49 @@ async function createCustomTables(db) {
     CREATE INDEX IF NOT EXISTS idx_patterns_urgency ON patterns(urgency_level);
   `);
 
+  // 3.5. Junction table for pattern-worker relationships (many-to-many)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pattern_workers (
+      pattern_id TEXT NOT NULL,
+      worker_id TEXT NOT NULL,
+      reported_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      severity_at_report TEXT,
+      first_mentioned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_mentioned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      mention_count INTEGER DEFAULT 1,
+
+      PRIMARY KEY (pattern_id, worker_id),
+      FOREIGN KEY (pattern_id) REFERENCES patterns(pattern_id) ON DELETE CASCADE,
+      FOREIGN KEY (worker_id) REFERENCES workers(worker_id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_pw_worker ON pattern_workers(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_pw_pattern ON pattern_workers(pattern_id);
+    CREATE INDEX IF NOT EXISTS idx_pw_reported_at ON pattern_workers(reported_at);
+  `);
+
+  // 3.6. Issue mentions table (audit trail for every time an issue is mentioned)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS issue_mentions (
+      mention_id TEXT PRIMARY KEY,
+      pattern_id TEXT NOT NULL,
+      worker_id TEXT NOT NULL,
+      conversation_id TEXT,
+      mentioned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      exact_quote TEXT,
+      severity TEXT,
+      location TEXT,
+
+      FOREIGN KEY (pattern_id) REFERENCES patterns(pattern_id) ON DELETE CASCADE,
+      FOREIGN KEY (worker_id) REFERENCES workers(worker_id) ON DELETE CASCADE,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_im_pattern ON issue_mentions(pattern_id);
+    CREATE INDEX IF NOT EXISTS idx_im_worker ON issue_mentions(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_im_conversation ON issue_mentions(conversation_id);
+  `);
+
   // 4. Recommendations table - ROI-backed suggestions
   db.exec(`
     CREATE TABLE IF NOT EXISTS recommendations (
@@ -259,7 +302,7 @@ async function createCustomTables(db) {
     CREATE INDEX IF NOT EXISTS idx_kg_rel_type ON knowledge_graph_relationships(relationship_type);
   `);
 
-  console.log('✅ Created 6 core tables with indexes');
+  console.log('✅ Created 8 core tables with indexes (including junction tables)');
 }
 
 export { createCustomTables };

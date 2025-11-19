@@ -9,6 +9,7 @@
 
 import express from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { initializeAgentDB } from './database/initAgentDB.js';
 import { getWorkerContext } from './tools/context.js';
@@ -57,6 +58,53 @@ async function initServer() {
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
+  }
+}
+
+/**
+ * Verify ElevenLabs webhook signature
+ * @param {Object} req - Express request object
+ * @returns {Object} { valid: boolean, error?: string }
+ */
+function verifyWebhookSignature(req) {
+  try {
+    // Get signature from headers
+    const signature = req.headers['x-elevenlabs-signature'];
+
+    if (!signature) {
+      return { valid: false, error: 'Missing x-elevenlabs-signature header' };
+    }
+
+    // Get webhook secret from environment
+    const secret = process.env.WEBHOOK_SECRET;
+
+    if (!secret) {
+      console.error('❌ WEBHOOK_SECRET not set in environment variables!');
+      return { valid: false, error: 'Server configuration error' };
+    }
+
+    // Compute expected signature
+    const rawBody = JSON.stringify(req.body);
+    const expectedHash = crypto
+      .createHmac('sha256', secret)
+      .update(rawBody)
+      .digest('hex');
+
+    const expectedSignature = `sha256=${expectedHash}`;
+
+    // Timing-safe comparison
+    if (signature !== expectedSignature) {
+      console.warn('⚠️  Webhook signature mismatch!');
+      console.warn(`   Received: ${signature.slice(0, 20)}...`);
+      console.warn(`   Expected: ${expectedSignature.slice(0, 20)}...`);
+      return { valid: false, error: 'Invalid signature' };
+    }
+
+    return { valid: true };
+
+  } catch (error) {
+    console.error('❌ Error verifying webhook signature:', error);
+    return { valid: false, error: 'Signature verification failed' };
   }
 }
 
@@ -113,7 +161,19 @@ app.post('/api/webhook/elevenlabs', async (req, res) => {
     console.log('📞 Received ElevenLabs webhook');
     const payload = req.body;
 
-    // TODO: Verify webhook signature (add WEBHOOK_SECRET validation)
+    // STEP 1: Verify webhook signature
+    const verificationResult = verifyWebhookSignature(req);
+
+    if (!verificationResult.valid) {
+      console.error('❌ Webhook verification failed:', verificationResult.error);
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        message: verificationResult.error
+      });
+    }
+
+    console.log('✅ Webhook signature verified');
 
     // Extract data from payload
     const {

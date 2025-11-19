@@ -41,20 +41,23 @@ export async function getWorkerContext(db, workerId) {
       LIMIT 3
     `).all(workerId);
 
-    // Get active patterns/issues related to this worker
+    // Get active patterns/issues related to this worker (via junction table)
     const activePatterns = db.prepare(`
       SELECT
-        pattern_id,
-        pattern_type,
-        issue_description,
-        location,
-        urgency_level
-      FROM patterns
-      WHERE status = 'active'
-        AND (affected_workers LIKE '%' || ? || '%' OR location = ?)
-      ORDER BY urgency_level DESC
+        p.pattern_id,
+        p.pattern_type,
+        p.issue_description,
+        p.location,
+        p.urgency_level,
+        pw.reported_at,
+        pw.mention_count
+      FROM patterns p
+      INNER JOIN pattern_workers pw ON p.pattern_id = pw.pattern_id
+      WHERE pw.worker_id = ?
+        AND p.status = 'active'
+      ORDER BY p.urgency_level DESC, pw.reported_at DESC
       LIMIT 5
-    `).all(workerId, worker.location || '');
+    `).all(workerId);
 
     // Build context object
     const context = {
