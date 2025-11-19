@@ -12,6 +12,8 @@
 
 **Active Development: V2 (ElevenLabs Integration)**
 
+**Branch:** `claude/explore-elevenlabs-018tvTHvauNafqf7TLK91LgW` (primary development branch)
+
 ```bash
 cd v2
 npm install
