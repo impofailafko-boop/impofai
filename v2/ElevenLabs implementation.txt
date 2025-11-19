@@ -1,0 +1,622 @@
+ElevenLabs implementation and create comprehensive documentation for your developer. Let me first examine the relevant files to understand your setup.
+
+Based on your codebase, I'll create comprehensive documentation for your developer on how to use the ElevenLabs API, with a focus on setting prompt and first message variables.
+
+---
+
+# **ElevenLabs Conversational AI Integration Guide**
+
+## **Table of Contents**
+1. [Installation & Setup](#installation--setup)
+2. [Basic Implementation](#basic-implementation)
+3. [Dynamic Variables System](#dynamic-variables-system)
+4. [Prompt Configuration](#prompt-configuration)
+5. [First Message Configuration](#first-message-configuration)
+6. [Complete Implementation Example](#complete-implementation-example)
+7. [Webhook Integration](#webhook-integration)
+8. [Best Practices](#best-practices)
+
+---
+
+## **Installation & Setup**
+
+### **1. Install Required Packages**
+
+```bash
+npm install @11labs/react
+# or
+yarn add @11labs/react
+# or
+pnpm install @11labs/react
+```
+
+### **2. ElevenLabs Agent Configuration**
+
+In the ElevenLabs Dashboard, you need to:
+1. Create a Conversational AI agent
+2. Note the **Agent ID** (e.g., `agent_01jvmgt8e9fv18dstm404gks7p`)
+3. Configure the webhook URL in agent settings:
+   ```
+   https://your-project.supabase.co/functions/v1/elevenlabs-webhook
+   ```
+
+---
+
+## **Basic Implementation**
+
+### **Initialize the Conversation Hook**
+
+```typescript
+import { useConversation } from '@11labs/react';
+
+const conversation = useConversation({
+  onConnect: () => {
+    console.log('Connected to ElevenLabs');
+  },
+  onDisconnect: () => {
+    console.log('Disconnected from ElevenLabs');
+  },
+  onError: (error) => {
+    console.error('ElevenLabs error:', error);
+  },
+  onMessage: (message) => {
+    console.log('Message received:', message);
+  }
+});
+```
+
+---
+
+## **Dynamic Variables System**
+
+ElevenLabs allows you to pass **dynamic variables** that can be used in your agent's configuration. These variables are passed when starting a session.
+
+### **Key Concept: Dynamic Variables**
+
+Dynamic variables allow you to:
+- Customize the agent's behavior per user
+- Inject user-specific context
+- Override agent settings (prompt, first message)
+- Pass metadata for tracking
+
+### **Available Dynamic Variables**
+
+```typescript
+const dynamicVariables = {
+  // User identification
+  user_id: string,
+  user_email: string,
+  user_name: string,
+  user_role: string,
+  organization_id: string,
+
+  // Agent behavior overrides
+  prompt: string, // 🔥 Main system prompt
+  first_message: string, // 🔥 Initial message to user
+
+  // Context variables
+  company: string,
+  name: string,
+  role: string,
+  responsibilities: string,
+  conversation_history: string,
+
+  // Custom variables (add as needed)
+  goal_questions: string,
+  // ... any other custom variables
+};
+```
+
+---
+
+## **Prompt Configuration**
+
+The **prompt** (also called "system prompt" or "instructions") defines how the AI agent should behave throughout the conversation.
+
+### **How to Set the Prompt**
+
+**Option 1: Via ElevenLabs Dashboard (Static)**
+- Go to your agent settings in ElevenLabs
+- Set the "Instructions" field
+- This is the default prompt if no dynamic override is provided
+
+**Option 2: Via Dynamic Variables (Runtime Override) ✅ Recommended**
+
+```typescript
+const buildPrompt = (userProfile, userContext, currentAgent) => {
+  // Use agent-specific prompt template
+  const promptTemplate = currentAgent?.main_prompt || 
+    `You are a helpful AI assistant for {{company}}.
+     You are speaking with {{name}}, who works as {{role}}.
+     Their responsibilities include: {{responsibilities}}.
+
+     Previous conversation context:
+     {{conversationHistory}}
+
+     Your goal is to help them achieve their objectives.`;
+
+  // Replace placeholders with actual values
+  return promptTemplate
+    .replace(/\{\{company\}\}/g, "Your Company Name")
+    .replace(/\{\{name\}\}/g, userProfile?.name || "user")
+    .replace(/\{\{role\}\}/g, userProfile?.role || "employee")
+    .replace(/\{\{responsibilities\}\}/g, userProfile?.responsibilities || "general duties")
+    .replace(/\{\{conversationHistory\}\}/g, userContext || "No previous conversations.");
+};
+
+// Usage when starting session
+const prompt = buildPrompt(userProfile, userContext, currentAgent);
+
+await conversation.startSession({
+  agentId: 'your-agent-id',
+  dynamicVariables: {
+    prompt: prompt, // 🔥 This overrides the agent's default instructions
+    // ... other variables
+  }
+});
+```
+
+### **Prompt Best Practices**
+
+1. **Include Context**: Always provide user context (name, role, previous conversations)
+2. **Be Specific**: Clearly define the agent's personality and goals
+3. **Use Variables**: Make prompts dynamic with placeholders like `{{name}}`, `{{role}}`
+4. **Length**: Keep prompts concise but comprehensive (500-2000 characters)
+5. **Format**: Use clear sections and bullet points for readability
+
+### **Example Prompt Template**
+
+```typescript
+const examplePrompt = `
+# Role
+You are Zdeno, a helpful AI assistant for {{company}}.
+
+# Context
+- You are speaking with {{name}}
+- Their role: {{role}}
+- Their responsibilities: {{responsibilities}}
+
+# Previous Conversations
+{{conversationHistory}}
+
+# Your Objectives
+1. Understand the user's current challenges
+2. Ask thoughtful follow-up questions
+3. Provide actionable suggestions
+4. Maintain a friendly, professional tone
+
+# Guidelines
+- Always address the user by name
+- Reference their previous conversations when relevant
+- Keep responses concise (2-3 sentences)
+- Ask one question at a time
+- Use Slovak language
+`;
+```
+
+---
+
+## **First Message Configuration**
+
+The **first message** is what the agent says when the conversation starts. It's crucial for setting the tone and engaging the user.
+
+### **How to Set the First Message**
+
+**Option 1: Via ElevenLabs Dashboard (Static)**
+- Set the "First Message" field in your agent settings
+- This is used if no dynamic override is provided
+
+**Option 2: Via Dynamic Variables (Runtime Override) ✅ Recommended**
+
+```typescript
+const getFirstMessage = async (user, userProfile, currentAgent, userContext) => {
+  // Priority 1: Check database for user-specific generated first message
+  try {
+    const { data } = await supabase.functions.invoke('get-user-first-message', {
+      body: {
+        userId: user?.id,
+        agentId: currentAgent?.id,
+        organizationId: currentOrganization?.id
+      }
+    });
+
+    if (data?.firstMessage) {
+      console.log('✅ Using stored first message from database');
+      return replaceVariables(data.firstMessage);
+    }
+  } catch (error) {
+    console.error('Error fetching first message:', error);
+  }
+
+  // Priority 2: Use agent's configured first message
+  if (currentAgent?.first_message) {
+    console.log('✅ Using agent-configured first message');
+    return replaceVariables(currentAgent.first_message);
+  }
+
+  // Priority 3: Generate dynamic first message based on context
+  if (userContext) {
+    const { data } = await supabase.functions.invoke('generate-first-message', {
+      body: { user_id: user.id }
+    });
+    return data?.message || getDefaultFirstMessage();
+  }
+
+  // Priority 4: Default fallback
+  return getDefaultFirstMessage();
+};
+
+const getDefaultFirstMessage = () => {
+  const greeting = getTimeBasedGreeting(); // "Dobré ráno", "Dobrý deň", etc.
+  return `${greeting}! Ako vám môžem pomôcť?`;
+};
+
+// Usage
+const firstMessage = await getFirstMessage(user, userProfile, currentAgent, userContext);
+
+await conversation.startSession({
+  agentId: 'your-agent-id',
+  dynamicVariables: {
+    first_message: firstMessage, // 🔥 This overrides the agent's default first message
+    // ... other variables
+  }
+});
+```
+
+### **First Message Best Practices**
+
+1. **Personalization**: Always include the user's name if available
+2. **Context Reference**: Mention previous conversations if applicable
+3. **Clear Purpose**: State why you're reaching out or what you can help with
+4. **Conversational**: Sound natural and friendly
+5. **Call to Action**: Include a question or prompt for engagement
+
+### **Example First Messages**
+
+**New User:**
+```typescript
+"Dobrý deň, Marek! Som Zdeno, váš AI asistent v Klima pre teba. Rád by som vám pomohol s vašimi pracovnými cieľmi. Čo by ste chceli dnes riešiť?"
+```
+
+**Returning User with Context:**
+```typescript
+"Dobrý deň, Marek! Minule ste spomínali, že sa venujete tvorbe automatizácií. Rád by som na to nadviazal – ktoré činnosti by ste chceli automatizovať ako prvé?"
+```
+
+**Time-Based:**
+```typescript
+const getTimeBasedGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Dobré ráno";
+  if (hour < 17) return "Dobrý deň";
+  return "Dobrý večer";
+};
+
+const firstMessage = `${getTimeBasedGreeting()}, ${userName}! ...`;
+```
+
+---
+
+## **Complete Implementation Example**
+
+Here's a full example showing how to implement prompts and first messages:
+
+```typescript
+import React, { useState, useEffect } from 'react';
+import { useConversation } from '@11labs/react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+
+const VoiceAgent = ({ agentId, currentAgent }) => {
+  const { user } = useAuth();
+  const [userProfile, setUserProfile] = useState(null);
+  const [userContext, setUserContext] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Initialize conversation
+  const conversation = useConversation({
+    onConnect: () => setIsConnected(true),
+    onDisconnect: () => setIsConnected(false),
+    onError: (error) => console.error('Error:', error)
+  });
+
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user) return;
+
+      // Fetch user profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      setUserProfile(profile);
+
+      // Fetch user context (conversation history)
+      const { data: context } = await supabase
+        .from('user_contexts')
+        .select('context_summary')
+        .eq('user_id', user.id)
+        .single();
+
+      setUserContext(context?.context_summary || '');
+    };
+
+    fetchUserData();
+  }, [user]);
+
+  // Replace variables in text
+  const replaceVariables = (text) => {
+    return text
+      .replace(/\{\{company\}\}/g, "Klima pre teba")
+      .replace(/\{\{name\}\}/g, userProfile?.name || "zamestnanec")
+      .replace(/\{\{role\}\}/g, userProfile?.role || "zamestnanec")
+      .replace(/\{\{responsibilities\}\}/g, userProfile?.responsibilities || "bežné pracovné povinnosti")
+      .replace(/\{\{conversationHistory\}\}/g, userContext || "Žiadna predchádzajúca história rozhovoru.");
+  };
+
+  // Build the prompt
+  const buildPrompt = () => {
+    const promptTemplate = currentAgent?.main_prompt || 
+      `You are a helpful AI assistant for {{company}}.
+       You are speaking with {{name}}, who works as {{role}}.
+       Their responsibilities: {{responsibilities}}.
+
+       Previous conversations:
+       {{conversationHistory}}`;
+
+    return replaceVariables(promptTemplate);
+  };
+
+  // Get first message
+  const getFirstMessage = async () => {
+    // Try to get stored first message
+    try {
+      const { data } = await supabase.functions.invoke('get-user-first-message', {
+        body: {
+          userId: user?.id,
+          agentId: currentAgent?.id,
+          organizationId: currentOrganization?.id
+        }
+      });
+
+      if (data?.firstMessage) {
+        return replaceVariables(data.firstMessage);
+      }
+    } catch (error) {
+      console.error('Error fetching first message:', error);
+    }
+
+    // Fallback to agent's configured message
+    if (currentAgent?.first_message) {
+      return replaceVariables(currentAgent.first_message);
+    }
+
+    // Default
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Dobré ráno" : hour < 17 ? "Dobrý deň" : "Dobrý večer";
+    return `${greeting}, ${userProfile?.name}! Ako vám môžem pomôcť?`;
+  };
+
+  // Start conversation
+  const startConversation = async () => {
+    try {
+      // Request microphone permission
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Generate prompt and first message
+      const prompt = buildPrompt();
+      const firstMessage = await getFirstMessage();
+
+      console.log('Starting session with:');
+      console.log('Prompt:', prompt);
+      console.log('First Message:', firstMessage);
+
+      // Start the session with dynamic variables
+      const conversationId = await conversation.startSession({
+        agentId: agentId,
+        dynamicVariables: {
+          // 🔥 Critical: Prompt and first message overrides
+          prompt: prompt,
+          first_message: firstMessage,
+
+          // User identification (for webhook)
+          user_id: user?.id || '',
+          user_email: user?.email || '',
+          user_name: userProfile?.name || '',
+          user_role: userProfile?.role || '',
+          organization_id: currentOrganization?.id || '',
+
+          // Context variables (accessible in prompt via {{variable}})
+          company: "Klima pre teba",
+          name: userProfile?.name || "zamestnanec",
+          role: userProfile?.role || "zamestnanec",
+          responsibilities: userProfile?.responsibilities || "bežné pracovné povinnosti",
+          conversation_history: userContext || "Žiadna predchádzajúca história rozhovoru."
+        }
+      });
+
+      console.log('Session started:', conversationId);
+    } catch (error) {
+      console.error('Failed to start conversation:', error);
+    }
+  };
+
+  // End conversation
+  const endConversation = async () => {
+    await conversation.endSession();
+  };
+
+  return (
+
+      {!isConnected ? (
+
+          Start Conversation
+
+      ) : (
+
+          End Conversation
+
+      )}
+
+      {isConnected && Status: {conversation.isSpeaking ? 'Speaking...' : 'Listening...'}}
+
+  );
+};
+
+export default VoiceAgent;
+```
+
+---
+
+## **Webhook Integration**
+
+The webhook receives conversation data after calls end. Configure it in ElevenLabs agent settings.
+
+### **Webhook URL Format**
+```
+https://your-project-id.supabase.co/functions/v1/elevenlabs-webhook
+```
+
+### **Webhook Payload**
+
+The webhook receives conversation data including the dynamic variables you passed:
+
+```typescript
+{
+  "type": "conversation_ended",
+  "data": {
+    "conversation_id": "conv_123",
+    "agent_id": "agent_456",
+    "transcript": "...",
+    "duration_seconds": 120,
+    "conversation_initiation_client_data": {
+      "dynamic_variables": {
+        "user_id": "user_789",
+        "user_email": "user@example.com",
+        "user_name": "John Doe",
+        "prompt": "Your custom prompt...",
+        "first_message": "Your custom first message...",
+        // ... all other variables you passed
+      }
+    }
+  }
+}
+```
+
+---
+
+## **Best Practices**
+
+### **1. Prompt Design**
+- ✅ Keep prompts under 2000 characters
+- ✅ Use clear sections (Role, Context, Objectives, Guidelines)
+- ✅ Include user context and conversation history
+- ✅ Test prompts with different user scenarios
+- ❌ Don't hardcode user-specific details
+- ❌ Don't make prompts too generic
+
+### **2. First Message Strategy**
+- ✅ Personalize with user's name
+- ✅ Reference previous conversations when available
+- ✅ Include a clear call-to-action or question
+- ✅ Use time-appropriate greetings
+- ❌ Don't make it too long (2-3 sentences max)
+- ❌ Don't ask multiple questions at once
+
+### **3. Variable Management**
+- ✅ Use consistent naming conventions (snake_case)
+- ✅ Always provide fallback values
+- ✅ Log variables for debugging
+- ✅ Validate data before passing to API
+- ❌ Don't pass sensitive data unless necessary
+- ❌ Don't use variables you haven't tested
+
+### **4. Error Handling**
+```typescript
+try {
+  await conversation.startSession({ /* ... */ });
+} catch (error) {
+  // Check for specific errors
+  if (error?.message?.includes('WebSocket')) {
+    console.error('Connection issue');
+  } else if (error?.message?.includes('401') || error?.message?.includes('403')) {
+    console.error('Authorization error - check agent configuration');
+  }
+
+  // Show user-friendly error
+  toast.error('Failed to start conversation. Please try again.');
+}
+```
+
+### **5. Testing Checklist**
+- ✅ Test with new users (no context)
+- ✅ Test with returning users (with context)
+- ✅ Test variable replacement
+- ✅ Test webhook data reception
+- ✅ Test error scenarios (no mic access, network issues)
+- ✅ Test on different times of day (greeting variations)
+
+---
+
+## **Troubleshooting**
+
+### **Prompt/First Message Not Working**
+
+1. **Check if variables are being replaced:**
+   ```typescript
+   console.log('Prompt before replacement:', promptTemplate);
+   console.log('Prompt after replacement:', finalPrompt);
+   ```
+
+2. **Verify dynamic variables are passed:**
+   ```typescript
+   console.log('Dynamic variables:', dynamicVariables);
+   ```
+
+3. **Check agent configuration in ElevenLabs dashboard:**
+   - Ensure agent accepts dynamic variable overrides
+   - Check if webhook is properly configured
+
+### **Variables Not Accessible in Prompt**
+
+Remember: Variables passed in `dynamicVariables` can be referenced in your prompt using `{{variable_name}}` syntax:
+
+```typescript
+// You pass:
+dynamicVariables: {
+  user_name: "John",
+  prompt: "You are talking to {{user_name}}" // ✅ Correct
+}
+
+// NOT:
+dynamicVariables: {
+  user_name: "John",
+  prompt: "You are talking to user_name" // ❌ Wrong
+}
+```
+
+---
+
+## **Additional Resources**
+
+- **ElevenLabs Documentation**: https://elevenlabs.io/docs
+- **@11labs/react Package**: https://www.npmjs.com/package/@11labs/react
+- **Your Webhook Endpoint**: `https://unqotqcqeszjujidcsks.supabase.co/functions/v1/elevenlabs-webhook`
+
+---
+
+This documentation should provide your developer with everything they need to understand and implement prompt and first message configuration in your ElevenLabs integration. Let me know if you need any clarification on specific sections!
+
+Add Prompt Testing Interface
+Create Prompt Template Library
+Add A/B Testing for Prompts
+Add Prompt Analytics Dashboard
+
+Este treba vediet ze sa treba napojit na agenta s tymto id:
+agent_01jvmgt8e9fv18dstm404gks7p
+
+
+
