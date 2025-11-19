@@ -1,0 +1,31 @@
+{
+  "name": "impofai-v2",
+  "version": "2.0.0",
+  "description": "ImpofAI V2 - Clean ElevenLabs conversational AI integration with AgentDB",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "echo \"Tests coming soon\" && exit 0"
+  },
+  "keywords": [
+    "elevenlabs",
+    "conversational-ai",
+    "business-intelligence",
+    "agentdb",
+    "slovak"
+  ],
+  "author": "Agentic Tribe",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "better-sqlite3": "^11.8.1",
+    "agentdb": "^1.6.1",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
