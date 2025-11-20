@@ -134,7 +134,7 @@ GET /api/tools/context/:workerId
 │    }                                                        │
 └─────────────────────────────────────────────────────────────┘
 
-POST /api/tools/issues
+POST /api/tools/issue
 ┌─────────────────────────────────────────────────────────────┐
 │  Purpose: Log issue reported during conversation           │
 │  Trigger: Called by ElevenLabs DURING conversation         │
@@ -173,7 +173,7 @@ POST /api/tools/issues
 │                   WEBHOOK PROCESSOR                          │
 └──────────────────────────────────────────────────────────────┘
 
-POST /api/webhooks/elevenlabs
+POST /api/webhook/elevenlabs
 ┌─────────────────────────────────────────────────────────────┐
 │  Purpose: Receive post-call data from ElevenLabs           │
 │  Trigger: ElevenLabs sends AFTER conversation ends         │
@@ -355,7 +355,7 @@ buildSlovakFirstMessage(context)
      │                       │    decides to use       │
      │                       │    log_issue tool       │
      │                       │                         │
-     │                       │ 2. POST /api/tools/issues
+     │                       │ 2. POST /api/tools/issue
      │                       │    {                    │
      │                       │      worker_id,         │
      │                       │      issue_description, │
@@ -410,7 +410,7 @@ buildSlovakFirstMessage(context)
      │                       │    full conversation    │
      │                       │    (~1-2s)              │
      │                       │                         │
-     │                       │ 2. POST /api/webhooks/elevenlabs
+     │                       │ 2. POST /api/webhook/elevenlabs
      │                       │    Headers:             │
      │                       │      x-elevenlabs-signature
      │                       │    Body:                │
@@ -629,7 +629,7 @@ LIMIT 1;
 
 Step 1: ElevenLabs Sends Webhook
 ┌────────────────────────────────────────────┐
-│ POST /api/webhooks/elevenlabs              │
+│ POST /api/webhook/elevenlabs               │
 │                                            │
 │ Headers:                                   │
 │   x-elevenlabs-signature: sha256={hash}    │
@@ -888,7 +888,7 @@ Runtime Integration:
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │           ImpofAI V2 Server                          │  │
 │  │  /api/tools/context/:workerId                        │  │
-│  │  /api/tools/issues                                   │  │
+│  │  /api/tools/issue                                    │  │
 │  └──────────────────────────────────────────────────────┘  │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
@@ -941,7 +941,7 @@ Runtime Integration:
         },
         "required": ["worker_id", "issue_description", "severity"]
       },
-      "url": "https://api.impofai.sk/api/tools/issues",
+      "url": "https://api.impofai.sk/api/tools/issue",
       "method": "POST"
     }
   ]
